@@ -12,7 +12,9 @@ import {
 export type LobbyRoom = Room<unknown, BombPartyRoomState | TankArenaRoomState>;
 
 export const lobbyClient = new Client(
-  import.meta.env.VITE_SERVER_URL || 'http://127.0.0.1:2567',
+  import.meta.env.VITE_COLYSEUS_URL ||
+    import.meta.env.VITE_SERVER_URL ||
+    'http://127.0.0.1:2567',
 );
 
 /** Snapshot `stage`, `turn` or `turnId` changes that should clear a stale action error. */

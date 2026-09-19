@@ -13,7 +13,7 @@ pnpm dev
 
 Open http://127.0.0.1:5173 in two tabs. Enter a name in the profile card and click the avatar to cycle its appearance. Select **Bomb Party** to expand its room options inline. Create a lobby in the first tab, then select **Join room** with its six-character code in the second (or use the invitation link). The host can edit **Game settings** before everyone selects **Ready**, then **Start session**. Take turns entering French words containing the prompt. The server validates words, runs the bomb, and declares the last survivor the winner. The host selects **Return to lobby** for another round. Labels follow the browser's preferred English/French language.
 
-Ctrl+C stops the development processes. No environment files are required with the defaults. To change the multiplayer port, copy `apps/server/.env.example` to `apps/server/.env` and edit `PORT`, then copy `apps/web/.env.example` to `apps/web/.env` and update `VITE_SERVER_URL`. Restart development after changing environment files. `VITE_` values are public browser configuration, never secrets. Both servers bind to loopback for local development.
+Ctrl+C stops the development processes. No environment files are required with the defaults. To change the multiplayer port, copy `apps/server/.env.example` to `apps/server/.env` and edit `PORT`, then copy `apps/web/.env.example` to `apps/web/.env` and update `VITE_COLYSEUS_URL`. Restart development after changing environment files. `VITE_` values are public browser configuration, never secrets. The local server binds to loopback; a deployed server must use its public URL.
 
 ## Structure
 
