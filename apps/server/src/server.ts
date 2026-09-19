@@ -20,6 +20,6 @@ export async function startServer(port: number) {
     throw new Error('PORT must be an integer between 1 and 65535.');
   }
   const server = createServer();
-  await server.listen(port, '127.0.0.1');
+  await server.listen(port, '0.0.0.0');
   return server;
 }
