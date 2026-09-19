@@ -1,0 +1,25 @@
+{
+  "name": "@but/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "start": "tsx --env-file-if-exists=.env src/index.ts",
+    "smoke": "tsx --env-file-if-exists=.env --test test/foundation.test.ts",
+    "test": "tsx --test --test-timeout=30000 test/bomb-party.test.ts test/game-rules.test.ts test/tank-arena.test.ts test/tank-rules.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@but/bomb-party": "workspace:*",
+    "@but/shared": "workspace:*",
+    "@colyseus/core": "0.18.14",
+    "@colyseus/schema": "5.0.33",
+    "@colyseus/ws-transport": "0.18.2",
+    "express": "5.2.1",
+    "@but/tank-arena": "workspace:*"
+  },
+  "devDependencies": {
+    "@colyseus/sdk": "0.18.2",
+    "tsx": "4.23.13"
+  }
+}

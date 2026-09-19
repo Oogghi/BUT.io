@@ -1,0 +1,17 @@
+{
+  "name": "@but/bomb-party",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@but/shared": "workspace:*",
+    "phaser": "4.2.1"
+  }
+}

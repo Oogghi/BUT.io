@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+artifacts/
+temporary_folder/
+scripts/ai_words.txt
+scripts/word_pipe.txt

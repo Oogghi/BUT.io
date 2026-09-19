@@ -1,0 +1,25 @@
+{
+  "name": "but-io",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @but/web --filter @but/server dev",
+    "dev:web": "pnpm --filter @but/web dev",
+    "dev:server": "pnpm --filter @but/server dev",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm typecheck && pnpm --filter @but/web build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm format:check",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.5",
+    "prettier": "3.9.8",
+    "typescript": "7.0.2"
+  }
+}
