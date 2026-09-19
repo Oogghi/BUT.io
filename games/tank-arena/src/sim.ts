@@ -21,10 +21,12 @@ import {
   launchVelocity,
   muzzle,
   stepBallistic,
+  centerOf,
   insideTank,
+  nearestOnTank,
+  spinFrom,
+  stable,
   stepTank,
-  supported,
-  tipSpeed,
   wrapDelta,
   type Solid,
   type Terrain,
@@ -38,7 +40,14 @@ export interface Tank {
   y: number;
   vx: number;
   vy: number;
+  /** Radians, clockwise on screen. */
+  angle: number;
+  /** Angular velocity, radians/s. */
+  av: number;
+  /** Resting: no longer simulated until it becomes unstable or is pushed. */
   grounded: boolean;
+  /** Consecutive calm ticks in contact; the tank rests after `SETTLE_TICKS`. */
+  calm: number;
   facing: number;
   health: number;
   maxHealth: number;
@@ -81,6 +90,11 @@ interface Shell {
 }
 
 const KNOCKBACK = 650;
+/** Share of a blast's off-center push that becomes spin. */
+const BLAST_SPIN = 0.35;
+const SETTLE_TICKS = 8;
+/** A tank resting past this tilt (on its side or roof) hops back upright. */
+const RIGHTING_ANGLE = 1.1;
 const POISON_DAMAGE = 8;
 const MAX_TICKS = TICK_RATE * 20;
 /** Shells ignore their own tank for this many ticks after leaving the barrel. */
@@ -161,8 +175,8 @@ const behaviors: Record<ActionId, Behavior> = {
   },
   shockwave: (sim, tank) =>
     sim.explode(
-      tank.x,
-      tank.y - TANK_H / 2,
+      centerOf(tank).x,
+      centerOf(tank).y,
       sim.boosted(tank, {
         kind: 'shell',
         damage: tanks[tank.tank].damage * 0.5,
@@ -246,13 +260,14 @@ export class Simulation {
     );
     tank.vx = velocity.vx;
     tank.vy = velocity.vy;
+    tank.av = 0;
     this.unground(tank);
   }
 
   fire(tank: Tank, intent: Intent, spec: ShellSpec, speed: number) {
     const spread = (1 - tanks[tank.tank].accuracy) * 6;
     const angle = intent.angle + (this.random() * 2 - 1) * spread;
-    const from = muzzle(tank.x, tank.y, angle);
+    const from = muzzle(tank, angle);
     const velocity = launchVelocity(angle, intent.power, SHELL_SPEED * speed);
     this.launch(this.boosted(tank, spec), tank.id, from, velocity, 0);
   }
@@ -294,10 +309,9 @@ export class Simulation {
     for (const tank of this.tanks) {
       if (!tank.alive || (spareOwner && tank.id === owner)) continue;
       // Distance to the nearest point of the tank's box, so big tanks are easy to hit.
-      const dx = wrapDelta(tank.x - x, this.terrain.map.width);
-      const nx = Math.max(dx - TANK_W / 2, Math.min(0, dx + TANK_W / 2));
-      const ny = Math.max(tank.y - TANK_H, Math.min(y, tank.y));
-      const distance = Math.hypot(nx, ny - y);
+      const width = this.terrain.map.width;
+      const near = nearestOnTank(tank, x, y, width);
+      const distance = near.distance;
       if (distance > spec.radius) continue;
       const falloff = 1 - (0.5 * distance) / spec.radius;
       this.damage(tank, Math.round(spec.damage * falloff));
@@ -314,8 +328,9 @@ export class Simulation {
         tank.frozenTurns = 2;
         this.events.push({ t, type: 'status', id: tank.id, status: 'frozen' });
       }
-      let ux = dx;
-      let uy = tank.y - TANK_H / 2 - y;
+      const center = centerOf(tank);
+      let ux = wrapDelta(center.x - x, width);
+      let uy = center.y - y;
       const length = Math.hypot(ux, uy);
       [ux, uy] = length < 1 ? [0, -1] : [ux / length, uy / length];
       // Blasts always lift a little, so knockback reads as a hop rather than a slide.
@@ -324,8 +339,12 @@ export class Simulation {
       const speed =
         (KNOCKBACK * spec.knockback * falloff * 55) /
         (tanks[tank.tank].weight + 25);
-      tank.vx += (ux / norm) * speed;
-      tank.vy = Math.min(tank.vy, 0) + (uy / norm) * speed;
+      const jx = (ux / norm) * speed;
+      const jy = (uy / norm) * speed;
+      tank.vx += jx;
+      tank.vy = Math.min(tank.vy, 0) + jy;
+      // Hit off-center, the tank spins.
+      tank.av += spinFrom(near.rx, near.ry, jx, jy) * BLAST_SPIN;
       this.unground(tank);
     }
     if (spec.split)
@@ -369,6 +388,7 @@ export class Simulation {
 
   private unground(tank: Tank) {
     tank.grounded = false;
+    tank.calm = 0;
     if (this.tankTracks.has(tank.id)) return;
     const track: ReplayTrack = {
       kind: 'tank',
@@ -376,6 +396,7 @@ export class Simulation {
       t0: this.tick,
       t1: this.tick,
       pts: [Math.round(tank.x), Math.round(tank.y)],
+      angles: [roundAngle(tank.angle)],
     };
     this.tankTracks.set(tank.id, track);
     this.tracks.push(track);
@@ -385,7 +406,24 @@ export class Simulation {
     const track = this.tankTracks.get(tank.id);
     if (!track) return;
     this.tankTracks.delete(tank.id);
-    finish(track, tank.x, tank.y, this.tick);
+    finish(track, tank.x, tank.y, this.tick, tank.angle);
+  }
+
+  /** A calm tank either comes to rest or, if it ended up on its side, hops back upright. */
+  private rest(tank: Tank) {
+    tank.calm = 0;
+    if (Math.abs(tank.angle) > RIGHTING_ANGLE) {
+      tank.vx = 0;
+      tank.vy = -450;
+      // Turn back to level over the hop's ~0.7s flight.
+      tank.av = -tank.angle / 0.7;
+      return;
+    }
+    tank.grounded = true;
+    tank.vx = 0;
+    tank.vy = 0;
+    tank.av = 0;
+    this.endTrack(tank);
   }
 
   private quiet() {
@@ -394,8 +432,7 @@ export class Simulation {
       !this.pending.length &&
       this.tanks.every(
         (tank) =>
-          !tank.alive ||
-          (tank.grounded && supported(this.solidFor(tank), tank.x, tank.y)),
+          !tank.alive || (tank.grounded && stable(this.solidFor(tank), tank)),
       )
     );
   }
@@ -429,9 +466,7 @@ export class Simulation {
           (tank) =>
             tank.alive &&
             (tank.id !== shell.owner || shell.age > ARMING_TICKS) &&
-            Math.abs(wrapDelta(x - tank.x, width)) <= TANK_W / 2 &&
-            y >= tank.y - TANK_H &&
-            y <= tank.y,
+            insideTank(tank, x, y, width),
         );
       const { waterY: water, width } = this.terrain.map;
       const hit = stepBallistic(
@@ -451,22 +486,24 @@ export class Simulation {
     for (const tank of this.tanks) {
       if (!tank.alive) continue;
       const solid = this.solidFor(tank);
-      if (tank.grounded && !supported(solid, tank.x, tank.y)) {
-        // Hanging over an edge: slide off away from it instead of catching on the corner.
-        tank.vx = tipSpeed(solid, tank.x, tank.y);
-        tank.vy = 0;
-        this.unground(tank);
-      }
+      // Resting tanks wake when what holds them changes (craters, a tank moving away).
+      if (tank.grounded && !stable(solid, tank)) this.unground(tank);
       if (!tank.grounded) {
-        stepTank(solid, this.terrain.map.width, tank);
+        const touched = stepTank(solid, this.terrain.map.width, tank);
         const track = this.tankTracks.get(tank.id);
-        if (track) record(track, tank.x, tank.y, t);
-        if (tank.y > this.terrain.map.waterY) {
+        if (track) record(track, tank.x, tank.y, t, tank.angle);
+        if (centerOf(tank).y > this.terrain.map.waterY) {
           this.events.push({ t, type: 'splash', x: Math.round(tank.x) });
           this.eliminate(tank, 'water');
           continue;
         }
-        if (tank.grounded) this.endTrack(tank);
+        // Slow and in contact (a frame hovering after a contact still counts).
+        const calm =
+          (touched || tank.calm > 0) &&
+          Math.hypot(tank.vx, tank.vy) < 45 &&
+          Math.abs(tank.av) < 0.6;
+        tank.calm = calm ? tank.calm + 1 : 0;
+        if (tank.calm >= SETTLE_TICKS) this.rest(tank);
       }
       this.collect(tank);
     }
@@ -474,11 +511,11 @@ export class Simulation {
 
   private collect(tank: Tank) {
     for (const pickup of [...this.pickups]) {
+      const center = centerOf(tank);
       if (
-        Math.abs(wrapDelta(pickup.x - tank.x, this.terrain.map.width)) >
+        Math.abs(wrapDelta(pickup.x - center.x, this.terrain.map.width)) >
           TANK_W / 2 + 8 ||
-        pickup.y < tank.y - TANK_H - 12 ||
-        pickup.y > tank.y + 12
+        Math.abs(pickup.y - center.y) > TANK_H / 2 + 16
       )
         continue;
       this.pickups.splice(this.pickups.indexOf(pickup), 1);
@@ -555,13 +592,31 @@ export class Simulation {
   }
 }
 
-function record(track: ReplayTrack, x: number, y: number, t: number) {
-  if (t > track.t0 && (t - track.t0) % TRACK_STEP === 0)
-    track.pts.push(Math.round(x), Math.round(y));
+function roundAngle(angle: number) {
+  return Math.round(angle * 100) / 100;
+}
+
+function record(
+  track: ReplayTrack,
+  x: number,
+  y: number,
+  t: number,
+  angle?: number,
+) {
+  if (t <= track.t0 || (t - track.t0) % TRACK_STEP !== 0) return;
+  track.pts.push(Math.round(x), Math.round(y));
+  if (angle !== undefined) track.angles?.push(roundAngle(angle));
 }
 
 /** Closes a track with its exact end point (see `samplePath`). */
-function finish(track: ReplayTrack, x: number, y: number, t: number) {
+function finish(
+  track: ReplayTrack,
+  x: number,
+  y: number,
+  t: number,
+  angle?: number,
+) {
   track.t1 = t;
   track.pts.push(Math.round(x), Math.round(y));
+  if (angle !== undefined) track.angles?.push(roundAngle(angle));
 }

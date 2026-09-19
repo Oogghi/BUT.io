@@ -212,6 +212,8 @@ export interface ReplayTrack {
   t1: number;
   /** Flattened `[x, y, x, y, …]`. */
   pts: number[];
+  /** Tank tracks: the tank's angle (radians) at each point of `pts`. */
+  angles?: number[];
 }
 
 export type EliminationCause = 'health' | 'water' | 'poison' | 'left';
@@ -244,7 +246,14 @@ export type ReplayEvent =
 export interface Replay {
   turn: number;
   ticks: number;
-  start: { id: string; x: number; y: number; health: number; shield: number }[];
+  start: {
+    id: string;
+    x: number;
+    y: number;
+    angle: number;
+    health: number;
+    shield: number;
+  }[];
   tracks: ReplayTrack[];
   events: ReplayEvent[];
 }
@@ -269,6 +278,8 @@ export interface TankPlayerState {
   tank: TankId;
   x: number;
   y: number;
+  /** Radians, clockwise; tanks tumble and rest on slopes. */
+  angle: number;
   facing: number;
   health: number;
   maxHealth: number;
@@ -328,8 +339,8 @@ export type PlanError =
 
 export const TRACK_STEP = 2;
 
-/** Position of a track at tick `t` (clamped to its ends), linearly interpolated. */
-export function samplePath(track: ReplayTrack, t: number): [number, number] {
+/** Fractional point index of a track at tick `t` (clamped to its ends). */
+function sampleIndex(track: ReplayTrack, t: number) {
   const last = track.pts.length / 2 - 1;
   const lastSampleTick = track.t0 + (last - 1) * TRACK_STEP;
   let index: number;
@@ -340,15 +351,30 @@ export function samplePath(track: ReplayTrack, t: number): [number, number] {
       last - 1 + (t - lastSampleTick) / Math.max(1, track.t1 - lastSampleTick);
   else index = (t - track.t0) / TRACK_STEP;
   const from = Math.floor(index);
-  const to = Math.min(last, from + 1);
+  return { from, to: Math.min(last, from + 1), f: index - from };
+}
+
+/** Position of a track at tick `t` (clamped to its ends), linearly interpolated. */
+export function samplePath(track: ReplayTrack, t: number): [number, number] {
+  const { from, to, f: fraction } = sampleIndex(track, t);
   // A jump this big between samples is a wrap across the arena edge: snap, don't streak.
   const f =
     Math.abs(track.pts[to * 2]! - track.pts[from * 2]!) > 400
-      ? Math.round(index - from)
-      : index - from;
+      ? Math.round(fraction)
+      : fraction;
   return [
     track.pts[from * 2]! + (track.pts[to * 2]! - track.pts[from * 2]!) * f,
     track.pts[from * 2 + 1]! +
       (track.pts[to * 2 + 1]! - track.pts[from * 2 + 1]!) * f,
   ];
+}
+
+/** Angle of a tank track at tick `t`, turning the short way between samples. */
+export function sampleAngle(track: ReplayTrack, t: number): number {
+  const angles = track.angles ?? [];
+  const { from, to, f } = sampleIndex(track, t);
+  const a = angles[from] ?? 0;
+  const b = angles[to] ?? a;
+  const turn = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+  return a + turn * f;
 }

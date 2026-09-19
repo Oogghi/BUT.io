@@ -71,7 +71,10 @@ export class TankArenaGame {
         y: this.terrain.surfaceBelow(x, spawn[1] - 20) ?? spawn[1],
         vx: 0,
         vy: 0,
+        angle: 0,
+        av: 0,
         grounded: true,
+        calm: 0,
         facing: x < map.width / 2 ? 1 : -1,
         health: tanks[tank].health,
         maxHealth: tanks[tank].health,
@@ -145,10 +148,11 @@ export class TankArenaGame {
 
   private resolve(now: number) {
     const alive = [...this.players.values()].filter((player) => player.alive);
-    const start = alive.map(({ id, x, y, health, shield }) => ({
+    const start = alive.map(({ id, x, y, angle, health, shield }) => ({
       id,
       x,
       y,
+      angle,
       health,
       shield,
     }));
@@ -177,6 +181,7 @@ export class TankArenaGame {
       player.confirmed = false;
       player.vx = 0;
       player.vy = 0;
+      player.av = 0;
       player.frozenTurns = Math.max(0, player.frozenTurns - 1);
       for (const [action, turns] of player.cooldowns)
         if (turns > 1) player.cooldowns.set(action, turns - 1);

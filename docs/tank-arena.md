@@ -16,10 +16,11 @@ A 2–8 player turn-based artillery brawler modeled on Plato's Brawlbots: everyo
 - **Units and gravity:** map pixels, simulated at 60 ticks per second. Gravity is 1250 px/s².
 - **Terrain:** a 4 px collision grid built from the map's solid rectangles. Explosions carve circular craters in both the grid and the foreground art (`map_destroy`).
 - **Wrapping:** the arena wraps horizontally. Tanks and shells that leave one side re-enter from the other, and blasts, hits and pickups measure distance the short way across the edge. The only way to fall is through a hole into the water (`waterY`), which eliminates the tank.
-- **Tanks:** tanks are 120×64 boxes and they collide with each other. They stop against each other and can stand on a roof. A tank lands dead on contact (no sliding) and stays put only while the ground holds its middle (or both ends, bridging a small hole); a tank held by one end tips off the edge and falls. At rest it visually leans on whatever is under both ends of its tracks (crater slopes, edges, another tank's roof); collisions still use the upright box.
+- **Tanks:** each tank is a rigid 120×64 box with an angle and spin. Gravity, contacts with the terrain and other tanks (slight bounce, strong friction) and blasts that land off-center make tanks tip, tumble, roll off edges and settle on slopes. A tank rests once it has been calm for a few ticks, and wakes as soon as its center of mass is no longer over what holds it (a crater opens, the tank below moves). A tank that settles on its side or roof hops back upright.
 - **Jumps:** launch speed is `1455 − 6 × weight` px/s. At full power the Neon rises about 640px, the Viper 500px and the Howler 370px, just enough to reach the platforms. Rocket Jump multiplies it by 1.1.
 - **Explosions:** damage falls off linearly to 50% at the blast edge, measured to the nearest point of each tank's box. Knockback pushes away from the blast with an upward bias, scaled by `55 / (weight + 25)`. Shells also hurt their own tank.
 - **Shared previews:** the client's trajectory preview runs the same stepping code as the server. It stops at the first contact.
+- **Replays:** tank tracks record the angle at every sample, so every client plays back the same tumble.
 
 ## Roster (`tanks` in `src/index.ts`)
 

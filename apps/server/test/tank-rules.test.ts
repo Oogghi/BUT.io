@@ -14,7 +14,6 @@ import {
   Terrain,
   insideTank,
   jumpPreview,
-  restingTilt,
   shellPreview,
   stepBallistic,
   wrapDelta,
@@ -173,7 +172,7 @@ test('the arena wraps: knocked-off tanks re-enter and blasts reach across the ed
   sim.run(new Map(), null);
   const flung = tank(game, 'b');
   assert.equal(flung.alive, true);
-  assert.equal(flung.y, 732);
+  assert.ok(Math.abs(flung.y - 732) < 3, `rests on the floor, y=${flung.y}`);
   assert.ok(
     flung.x > 300 && flung.x < 1000,
     `landed after wrapping, x=${flung.x}`,
@@ -196,7 +195,8 @@ test('craters drop tanks into the water; eliminated tanks cannot act; last one w
       { action: 'skip', angle: 0, power: 1, turn: game.turn },
       game.deadline - 1,
     );
-  game.terrain.carve(100, 760, 70);
+  // Wide enough for the whole 120px box to drop through.
+  game.terrain.carve(100, 780, 90);
   for (const id of ['a', 'b', 'c']) hold(id);
   assert.equal(game.stage, 'resolving');
   assert.equal(
@@ -222,7 +222,7 @@ test('craters drop tanks into the water; eliminated tanks cannot act; last one w
   assert.equal(game.stage, 'planning');
   assert.equal(hold('a'), 'not-playing');
   // Only the survivors are waited for.
-  game.terrain.carve(tank(game, 'b').x, 760, 70);
+  game.terrain.carve(tank(game, 'b').x, 780, 90);
   assert.equal(hold('b'), null);
   assert.equal(hold('c'), null);
   assert.equal(game.stage, 'resolving');
@@ -406,33 +406,29 @@ test('tanks collide: they stop against each other and can stand on a roof', () =
     grounded: false,
   });
   push().run(new Map(), null);
-  assert.equal(tank(game, 'a').y, 732 - TANK_H, 'rests on the roof');
+  assert.ok(
+    Math.abs(tank(game, 'a').y - (732 - TANK_H)) < 3,
+    'rests on the roof',
+  );
   tank(game, 'b').alive = false;
   push().run(new Map(), null);
-  assert.equal(tank(game, 'a').y, 732, 'drops once the tank below is gone');
+  assert.ok(
+    Math.abs(tank(game, 'a').y - 732) < 3,
+    'drops once the tank below is gone',
+  );
 });
 
 test('jump previews trace the free arc and stop at the first contact', () => {
   const terrain = new Terrain(jungleMap);
   // Straight up under the left platform (its underside is at y = 440).
-  const bonk = jumpPreview(terrain, { x: 376, y: 732 }, { vx: 0, vy: -1000 });
-  assert.ok(bonk.at(-1)! - TANK_H <= 441 && bonk.at(-1)! - TANK_H > 430);
+  const bonk = jumpPreview(
+    terrain,
+    { x: 376, y: 732, angle: 0 },
+    { vx: 0, vy: -1000 },
+  );
+  assert.ok(bonk.at(-1)! - TANK_H <= 444 && bonk.at(-1)! - TANK_H > 430);
   for (let index = 3; index < bonk.length; index += 2)
     assert.ok(bonk[index]! < bonk[index - 2]!, 'still rising when it stops');
-});
-
-test('resting tanks lean on craters and on other tanks', () => {
-  const terrain = new Terrain(jungleMap);
-  const floor = (x: number, y: number) => terrain.solid(x, y);
-  assert.equal(restingTilt(floor, 800, 732), 0, 'flat floor');
-  // A crater under the right end of the tracks tips the tank to the right.
-  terrain.carve(855, 745, 30);
-  assert.ok(restingTilt(floor, 800, 732) > 0.1);
-  // Half on another tank's roof: the free end hangs down.
-  const roof = { x: 1200, y: 732 };
-  const withTank = (x: number, y: number) =>
-    terrain.solid(x, y) || insideTank(roof, x, y, jungleMap.width);
-  assert.ok(restingTilt(withTank, 1200 + TANK_W / 2, 732 - TANK_H) > 0.2);
 });
 
 test('a tank held by only one end tips off the edge; bridging a small hole is fine', () => {
@@ -442,12 +438,50 @@ test('a tank held by only one end tips off the edge; bridging a small hole is fi
   // Left platform starts at x = 218 (top y = 396): the center hangs past the edge.
   Object.assign(tank(game, 'a'), { x: 205, y: 396, grounded: true });
   sim().run(new Map(), null);
-  assert.equal(tank(game, 'a').y, 732, 'fell to the floor');
-  assert.ok(tank(game, 'a').x < 205, 'slid away from the edge');
+  // It tips over the edge, tumbles, rights itself and rests upright on the floor.
+  assert.ok(Math.abs(tank(game, 'a').y - 732) < 3, 'fell to the floor');
+  assert.ok(Math.abs(tank(game, 'a').angle) < 0.05, 'upright again');
+  assert.ok(tank(game, 'a').x < 218, 'fell off the platform side');
 
   // A narrow crater under the middle: both ends still hold it up.
   place(game, 'a', 900);
   game.terrain.carve(900, 740, 14);
   sim().run(new Map(), null);
-  assert.equal(tank(game, 'a').y, 732);
+  assert.equal(tank(game, 'a').y, 732, 'did not move');
+});
+
+test('rigid tanks settle tilted on slopes and spin when hit off-center', () => {
+  const game = create(['viper', 'howler']);
+  const sim = () =>
+    new Simulation(game.terrain, [...game.players.values()], [], [], seeded());
+  // A crater under the right half: the tank rolls in and rests leaning into it.
+  game.terrain.carve(860, 760, 45);
+  Object.assign(tank(game, 'a'), { x: 820, y: 700, grounded: false });
+  sim().run(new Map(), null);
+  assert.equal(tank(game, 'a').grounded, true);
+  assert.ok(
+    tank(game, 'a').angle > 0.1,
+    `leans right: ${tank(game, 'a').angle}`,
+  );
+
+  // A blast under one end lifts it more than the other: it spins.
+  place(game, 'b', 1300);
+  Object.assign(tank(game, 'b'), { angle: 0, av: 0 });
+  const blast = sim();
+  blast.explode(
+    1345,
+    740,
+    {
+      kind: 'shell',
+      damage: 0,
+      radius: 90,
+      knockback: 1,
+      crater: 0,
+    },
+    'x',
+  );
+  assert.ok(
+    tank(game, 'b').av < -0.2,
+    `spins counter-clockwise: ${tank(game, 'b').av}`,
+  );
 });

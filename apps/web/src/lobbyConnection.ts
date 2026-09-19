@@ -64,6 +64,7 @@ function snapshotTankArena(state: TankArenaRoomState) {
             tank: isTankId(player.tank) ? player.tank : 'howler',
             x: player.x,
             y: player.y,
+            angle: player.angle,
             facing: player.facing,
             health: player.health,
             maxHealth: player.maxHealth,

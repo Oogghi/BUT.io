@@ -11,6 +11,7 @@ import {
   PLANNING_SECONDS,
   actions,
   maps,
+  sampleAngle,
   samplePath,
   tanks,
   type ActionId,
@@ -35,7 +36,6 @@ import {
   jumpSpeed,
   launchVelocity,
   muzzle,
-  restingTilt,
   shellPreview,
 } from './physics.js';
 
@@ -45,6 +45,7 @@ export interface ArenaTank {
   tank: TankId;
   x: number;
   y: number;
+  angle: number;
   facing: number;
   health: number;
   maxHealth: number;
@@ -754,6 +755,7 @@ export function mountArena(
           continue;
         }
         sprite.root.setPosition(player.x, player.y);
+        sprite.body.setRotation(player.angle);
         sprite.body.setFlipX(player.facing < 0);
         sprite.label.setColor(player.you ? '#ffc43d' : '#ffffff');
         const confirmed = view.stage === 'planning' && player.confirmed;
@@ -1107,7 +1109,7 @@ export function mountArena(
           this.previewPoints = fan.map((offset) =>
             shellPreview(
               this.terrain,
-              muzzle(own.x, own.y, aim.angle + offset),
+              muzzle(own, aim.angle + offset),
               launchVelocity(
                 aim.angle + offset,
                 aim.power,
@@ -1175,6 +1177,7 @@ export function mountArena(
         const sprite = this.tanks.get(start.id);
         if (!sprite) continue;
         sprite.root.setPosition(start.x, start.y);
+        sprite.body.setRotation(start.angle);
         sprite.health = start.health;
         sprite.shield = start.shield;
         sprite.badge.setVisible(false);
@@ -1203,14 +1206,9 @@ export function mountArena(
           if (tick < track.t0) break;
           const [x, y] = samplePath(track, tick);
           sprite.root.setPosition(x, y);
-          if (tick < track.t1) {
-            flying = true;
-            const [nx] = samplePath(track, tick + 1);
-            // Tilt with horizontal speed so flights and knockbacks read clearly.
-            const step = Math.abs(nx - x) > 400 ? 0 : nx - x;
-            const tilt = Math.max(-0.7, Math.min(0.7, step * 0.05));
-            sprite.body.rotation += (tilt - sprite.body.rotation) * 0.25;
-          }
+          // The simulated rotation: tumbles, tips and slopes play back as they happened.
+          sprite.body.setRotation(sampleAngle(track, tick));
+          if (tick < track.t1) flying = true;
         }
         if (sprite.airborne && !flying) this.land(sprite);
         if (!sprite.airborne && flying) this.takeOff(sprite);
@@ -1497,14 +1495,6 @@ export function mountArena(
       if (Math.abs(sprite.shownHealth - sprite.health) < 0.3)
         sprite.shownHealth = sprite.health;
       this.drawBar(sprite);
-      if (sprite.alive && !sprite.airborne && !sprite.sinking) {
-        // Settle onto whatever is under the tracks: crater slopes, edges, other roofs.
-        const tilt = this.tiltOf(sprite);
-        sprite.body.rotation = calm
-          ? tilt
-          : sprite.body.rotation +
-            (tilt - sprite.body.rotation) * Math.min(1, delta / 90);
-      }
       if (calm || !sprite.alive || sprite.airborne) return;
       // Idle engine rumble and the occasional exhaust puff.
       sprite.body.y = Math.sin(time / 170 + sprite.phase) * 1.1;
@@ -1518,21 +1508,6 @@ export function mountArena(
             1,
           );
       }
-    }
-
-    /**
-     * Presentation only (collisions stay upright boxes): how the tank leans on the
-     * terrain and the other tanks under its tracks.
-     */
-    private tiltOf(sprite: TankSprite) {
-      const { x, y } = sprite.root;
-      const others = [...this.tanks.values()].filter(
-        (other) => other !== sprite && other.alive && other.root.visible,
-      );
-      const solid = (px: number, py: number) =>
-        this.terrain.solid(px, py) ||
-        others.some((other) => insideTank(other.root, px, py, map.width));
-      return restingTilt(solid, x, y);
     }
 
     /**
