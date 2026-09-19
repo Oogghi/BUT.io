@@ -69,7 +69,7 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
 
   useEffect(() => {
     let active = true;
-    void currentAccount()
+    void currentAccount(loadProfile().displayName)
       .then((next) => {
         if (active) setAccount(next);
       })
@@ -283,7 +283,7 @@ function AuthPanel({
             onClick={() => {
               setBusy(true);
               setError('');
-              void signInAnonymously()
+              void signInAnonymously(loadProfile().displayName)
                 .then(onAuthenticated)
                 .catch((cause) => setError(errorMessage(cause)))
                 .finally(() => setBusy(false));

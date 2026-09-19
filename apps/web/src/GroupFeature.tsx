@@ -238,7 +238,10 @@ export function GroupFeature({ account }: { account: Account }) {
                     </span>
                     <strong>{member.username}</strong>
                     {member.userId === account.userId && (
-                      <small>{t.community.you}</small>
+                      <small>
+                        {t.community.you}
+                        {account.isAnonymous ? ' (Guest)' : ''}
+                      </small>
                     )}
                     {member.isLeader && (
                       <span className="group-leader-badge">

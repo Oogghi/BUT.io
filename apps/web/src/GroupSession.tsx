@@ -10,6 +10,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { Link, useLocation } from 'react-router';
 import { Icon } from './Icon';
+import { loadProfile } from './profile';
 import {
   createGroup as createGroupRequest,
   currentAccount,
@@ -123,7 +124,7 @@ export function GroupProvider({ children }: { children: ReactNode }) {
     let active = true;
     const syncAccount = async () => {
       try {
-        const next = await currentAccount();
+        const next = await currentAccount(loadProfile().displayName);
         if (!active) return;
         setAccount(next);
         setSeenInvites(next ? readSeenInvites(next.userId) : []);

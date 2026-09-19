@@ -377,12 +377,17 @@ function normalizeMatch(
   };
 }
 
-export async function currentAccount(): Promise<Account | null> {
+export async function currentAccount(
+  displayName = '',
+): Promise<Account | null> {
   const { data, error } = await client().auth.getSession();
   fail(error);
   const user = data.session?.user;
   if (!user) return null;
-  const profile = await profileById(user.id);
+  let profile = await profileById(user.id);
+  if (user.is_anonymous && !profile && displayName.trim()) {
+    profile = await saveGuestProfile(user.id, displayName);
+  }
   return {
     userId: user.id,
     email: user.email ?? '',
@@ -436,15 +441,47 @@ export async function signIn(
   return account;
 }
 
-export async function signInAnonymously(): Promise<Account> {
-  const { data, error } = await client().auth.signInAnonymously();
+export async function signInAnonymously(displayName = ''): Promise<Account> {
+  const { data, error } = await client().auth.signInAnonymously(
+    displayName?.trim()
+      ? { options: { data: { username: displayName.trim() } } }
+      : undefined,
+  );
   fail(error);
   if (!data.user)
     throw new DataLayerError('not-authenticated', 'Guest sign in failed.');
-  const account = await currentAccount();
+  if (displayName?.trim()) await saveGuestProfile(data.user.id, displayName);
+  const account = await currentAccount(displayName);
   if (!account)
     throw new DataLayerError('not-authenticated', 'Guest sign in failed.');
   return account;
+}
+
+async function saveGuestProfile(
+  userId: string,
+  displayName: string,
+): Promise<ProfileRecord> {
+  const base = displayName.trim().slice(0, 24).trim();
+  if (!base) throw new DataLayerError('request-failed', 'Guest name is empty.');
+  try {
+    return await saveProfile(userId, base);
+  } catch (cause) {
+    if (!(cause instanceof DataLayerError) || cause.code !== 'username-taken')
+      throw cause;
+    try {
+      return await saveProfile(userId, `${base.slice(0, 16).trim()} (Guest)`);
+    } catch (retryCause) {
+      if (
+        !(retryCause instanceof DataLayerError) ||
+        retryCause.code !== 'username-taken'
+      )
+        throw retryCause;
+      return saveProfile(
+        userId,
+        `${base.slice(0, 18).trim()}-${userId.slice(0, 5)}`,
+      );
+    }
+  }
 }
 
 export async function signUp(
