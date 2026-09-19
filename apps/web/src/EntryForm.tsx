@@ -138,6 +138,7 @@ export function EntryForm({ code, pending, error, connect }: Props) {
             {(
               [
                 [t.friends, 'users', '/friends'],
+                [t.group, 'users', '/group'],
                 [t.stats, 'stats', '/stats'],
                 [t.leaderboard, 'trophy', '/leaderboard'],
                 [t.settings, 'settings', null],

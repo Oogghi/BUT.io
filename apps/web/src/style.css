@@ -138,6 +138,49 @@ h3 {
 .die-pip {
   fill: var(--ink);
 }
+.group-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 7px 12px 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  background: #1d1a2ecc;
+  font-size: 13px;
+  font-weight: 800;
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s var(--pop);
+}
+.group-indicator:hover,
+.group-indicator:focus-visible,
+.group-indicator.is-active {
+  color: var(--text);
+  border-color: #baa5ff88;
+  transform: translateY(-1px);
+}
+.group-indicator-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--lilac);
+  background: #baa5ff1c;
+}
+.group-indicator-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.group-indicator-code {
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+  color: var(--lilac);
+  letter-spacing: 0.08em;
+}
 
 /* Profile row */
 .hero {
@@ -1948,6 +1991,188 @@ input[aria-invalid='true'] {
   display: grid;
   gap: 20px;
 }
+.group-content {
+  gap: 32px;
+}
+.group-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.group-action-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 30px;
+}
+.group-action-card h2,
+.group-action-card p {
+  margin: 0;
+}
+.group-action-card p {
+  min-height: 48px;
+  color: var(--muted);
+}
+.group-card-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  color: var(--coral);
+  background: #ff6b4a1c;
+}
+.group-card-icon.is-mint {
+  color: var(--mint);
+  background: #45dcae1c;
+}
+.group-card-icon svg {
+  width: 23px;
+  height: 23px;
+}
+.group-panel {
+  display: grid;
+  gap: 22px;
+  padding: 30px;
+}
+.group-panel-header,
+.group-members-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.group-panel-header h2,
+.group-members-heading h3 {
+  margin: 0;
+}
+.group-panel-header h2 {
+  color: var(--lilac);
+  font-size: 34px;
+  letter-spacing: 0.08em;
+}
+.eyebrow {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.group-member-list {
+  margin: 0;
+}
+.group-member-list li {
+  min-height: 68px;
+}
+.group-member-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+.group-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  color: var(--ink);
+  background: var(--lilac);
+  font-weight: 800;
+}
+.group-member-name small,
+.group-invite-list small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.group-leader-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--sun);
+  font-size: 12px;
+  font-weight: 800;
+}
+.group-leader-badge svg {
+  width: 14px;
+  height: 14px;
+}
+.group-leader-note {
+  margin: -6px 0 0;
+}
+.group-friend-invites {
+  display: grid;
+  gap: 12px;
+  padding: 22px 30px;
+}
+.group-friend-invites h3 {
+  margin: 0;
+}
+.group-friend-invites .community-list li {
+  min-height: 58px;
+}
+.group-invite-list li {
+  min-height: 72px;
+}
+.group-invite-list li > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+.compact-button {
+  min-height: 40px;
+  padding: 8px 14px;
+}
+.is-danger {
+  color: var(--coral);
+}
+.group-lobby-banner {
+  position: fixed;
+  z-index: 20;
+  top: 18px;
+  right: max(24px, calc((100vw - 1180px) / 2));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(430px, calc(100vw - 36px));
+  padding: 14px 16px;
+  border: 1px solid #baa5ff66;
+  border-radius: 18px;
+  background: #211d35f5;
+  box-shadow: 0 12px 36px #08060ecc;
+  backdrop-filter: blur(14px);
+}
+.group-lobby-banner > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+.group-lobby-banner strong,
+.group-lobby-banner span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-lobby-banner span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.group-banner-dismiss {
+  align-self: flex-start;
+  min-height: 24px;
+  padding: 0 4px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+}
+.group-banner-dismiss:hover {
+  color: var(--text);
+}
 .community-section .section-heading {
   margin-bottom: 0;
 }
@@ -2147,6 +2372,12 @@ input[aria-invalid='true'] {
   }
 }
 @media (max-width: 720px) {
+  .group-indicator {
+    max-width: 190px;
+  }
+  .group-indicator-code {
+    display: none;
+  }
   .shell {
     width: calc(100% - 32px);
   }
@@ -2654,6 +2885,28 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
   }
   .community-content {
     gap: 24px;
+  }
+  .group-entry-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .group-action-card,
+  .group-panel {
+    padding: 22px;
+  }
+  .group-panel-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .group-member-list li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+    padding-block: 14px;
+  }
+  .group-lobby-banner {
+    top: 12px;
+    right: 12px;
+    width: calc(100vw - 24px);
   }
   .community-section {
     gap: 14px;

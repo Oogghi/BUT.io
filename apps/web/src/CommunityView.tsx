@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Icon } from './Icon';
+import { GroupFeature } from './GroupFeature';
 import { loadProfile } from './profile';
 import { t } from './i18n';
 import {
@@ -32,7 +33,7 @@ import {
   type ProfileRecord,
 } from './supabaseData';
 
-export type CommunityFeature = 'friends' | 'stats' | 'leaderboard';
+export type CommunityFeature = 'friends' | 'group' | 'stats' | 'leaderboard';
 
 const featureConfig: Record<
   CommunityFeature,
@@ -42,6 +43,11 @@ const featureConfig: Record<
     icon: 'users',
     title: t.community.friendsTitle,
     description: t.community.friendsDescription,
+  },
+  group: {
+    icon: 'users',
+    title: t.community.groupTitle,
+    description: t.community.groupDescription,
   },
   stats: {
     icon: 'stats',
@@ -104,6 +110,9 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
           >
             {t.friends}
           </Link>
+          <Link className={feature === 'group' ? 'is-active' : ''} to="/group">
+            {t.group}
+          </Link>
           <Link className={feature === 'stats' ? 'is-active' : ''} to="/stats">
             {t.stats}
           </Link>
@@ -139,6 +148,8 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
         <AuthPanel onAuthenticated={setAccount} />
       ) : !account.username ? (
         <ProfileSetup account={account} onComplete={setAccount} />
+      ) : feature === 'group' ? (
+        <GroupFeature account={account} />
       ) : feature === 'friends' ? (
         <FriendsFeature account={account} />
       ) : feature === 'stats' ? (

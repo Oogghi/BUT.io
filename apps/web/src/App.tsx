@@ -13,6 +13,11 @@ import type { JoinOptions } from '@but/shared';
 import { EntryForm } from './EntryForm';
 import { LobbyView } from './LobbyView';
 import {
+  GroupIndicator,
+  GroupLobbyInviteBanner,
+  useGroupSession,
+} from './GroupSession';
+import {
   lobbyClient,
   snapshotRoom,
   turnKey,
@@ -20,9 +25,10 @@ import {
   type LobbySnapshot,
 } from './lobbyConnection';
 import { spring } from './spring';
-import type { Profile } from './profile';
+import { loadProfile, type Profile } from './profile';
 import { lobbyError, planError, wordError, t } from './i18n';
 import { CommunityView } from './CommunityView';
+import type { GameId } from './supabaseData';
 
 /** Join a lobby by invite code, or create a new one for a game. */
 export type Destination = { code: string } | { gameId: string };
@@ -31,6 +37,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const reducedMotion = useReducedMotion();
+  const groupSession = useGroupSession();
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null);
   const [pending, setPending] = useState(false);
@@ -115,6 +122,9 @@ export default function App() {
         return;
       }
       setRoom(joined);
+      void publishLobbyForGroup(joined, destination, groupSession).catch(
+        () => undefined,
+      );
       const path = `/lobby/${joined.roomId}`;
       navigate(path, {
         replace: location.pathname.toUpperCase() === path.toUpperCase(),
@@ -134,6 +144,29 @@ export default function App() {
     } finally {
       if (attempt === requestId.current) setPending(false);
     }
+  }
+
+  async function publishLobbyForGroup(
+    joined: LobbyRoom,
+    destination: Destination,
+    session: ReturnType<typeof useGroupSession>,
+  ) {
+    const next = await session.refresh().catch(() => null);
+    const group = next?.group;
+    const gameId = supportedGameId(
+      'gameId' in destination ? destination.gameId : joined.state.gameId,
+    );
+    if (!group || group.leaderId !== session.account?.userId || !gameId) return;
+    await session.publishLobbyInvite(
+      joined.roomId,
+      gameId,
+      gameId === 'tank-arena' ? 'Tank Arena' : 'Bomb Party',
+      group.id,
+    );
+  }
+
+  async function joinGroupLobby(lobbyCode: string) {
+    await connect(loadProfile(), { code: lobbyCode });
   }
 
   function leave() {
@@ -179,13 +212,20 @@ export default function App() {
           </svg>
           but<span className="brand-suffix">.io</span>
         </Link>
+        <GroupIndicator />
       </header>
       <main className="shell" id="main-content" tabIndex={-1}>
-        {room && error && snapshot?.phase !== 'playing' && (
-          <p className="notice global-notice" role="alert">
-            {error}
-          </p>
-        )}
+        <GroupLobbyInviteBanner
+          onJoin={(invite) => joinGroupLobby(invite.lobbyCode)}
+        />
+        {error &&
+          snapshot?.phase !== 'playing' &&
+          (room ||
+            /^\/(friends|group|stats|leaderboard)/.test(location.pathname)) && (
+            <p className="notice global-notice" role="alert">
+              {error}
+            </p>
+          )}
         <motion.div
           key={location.pathname}
           initial={reducedMotion ? false : { opacity: 0, y: 16 }}
@@ -216,6 +256,7 @@ export default function App() {
               path="/friends"
               element={<CommunityView feature="friends" />}
             />
+            <Route path="/group" element={<CommunityView feature="group" />} />
             <Route path="/stats" element={<CommunityView feature="stats" />} />
             <Route
               path="/leaderboard"
@@ -235,6 +276,10 @@ export default function App() {
       </main>
     </MotionConfig>
   );
+}
+
+function supportedGameId(value: string | undefined): GameId | null {
+  return value === 'bomb-party' || value === 'tank-arena' ? value : null;
 }
 
 function LobbyRoute({
