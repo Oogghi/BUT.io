@@ -9,6 +9,7 @@ import {
   frenchDictionary,
   parseSettings,
 } from '@but/bomb-party/server';
+import type { BombPartyMatchResult } from '@but/shared';
 import {
   GamePlayerSchema,
   GameStateSchema,
@@ -78,6 +79,48 @@ export class BombPartyLobbyRoom extends LobbyRoom<
   protected leaveMatch(id: string) {
     this.match?.leave(id, performance.now());
     this.syncGame();
+  }
+
+  protected buildMatchResult(
+    matchId: string,
+    playedAt: string,
+    endedAt: string,
+  ): BombPartyMatchResult | null {
+    const match = this.match;
+    if (!match) return null;
+    const players = [...match.players].flatMap(([sessionId, player]) => {
+      const playerId = this.accountId(sessionId);
+      if (!playerId) return [];
+      return [
+        {
+          playerId,
+          outcome: match.winnerId
+            ? sessionId === match.winnerId
+              ? ('win' as const)
+              : ('loss' as const)
+            : ('draw' as const),
+          stats: {
+            wordsPlayed: player.wordsPlayed ?? 0,
+            wordsAccepted: player.wordsAccepted ?? 0,
+            livesLost: player.livesLost ?? 0,
+            bestStreak: player.bestStreak ?? 0,
+            livesRecovered: player.livesRecovered ?? 0,
+          },
+        },
+      ];
+    });
+    return players.length
+      ? {
+          gameId: 'bomb-party',
+          matchId,
+          playedAt,
+          durationSeconds: Math.max(
+            0,
+            (Date.parse(endedAt) - Date.parse(playedAt)) / 1000,
+          ),
+          players,
+        }
+      : null;
   }
 
   private handleWord(client: Client, payload: unknown) {

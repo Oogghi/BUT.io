@@ -27,8 +27,18 @@ import {
 import { spring } from './spring';
 import { loadProfile, type Profile } from './profile';
 import { lobbyError, planError, wordError, t } from './i18n';
-import { CommunityView } from './CommunityView';
+import {
+  CommunityDrawer,
+  CommunityView,
+  type AuthMode,
+  type CommunitySection,
+} from './CommunityView';
 import type { GameId } from './supabaseData';
+import { loadSettings, type AppSettings } from './settings';
+import { SettingsPanel } from './SettingsPanel';
+import { LockerView } from './LockerView';
+import { CoinIndicator, RewardToast, type RewardNotice } from './Rewards';
+import { getAccessToken } from './supabaseData';
 
 /** Join a lobby by invite code, or create a new one for a game. */
 export type Destination = { code: string } | { gameId: string };
@@ -38,6 +48,15 @@ export default function App() {
   const location = useLocation();
   const reducedMotion = useReducedMotion();
   const groupSession = useGroupSession();
+  const [communityPanel, setCommunityPanel] = useState<CommunitySection | null>(
+    null,
+  );
+  const [communityAuthMode, setCommunityAuthMode] = useState<
+    AuthMode | undefined
+  >();
+  const [settingsPanel, setSettingsPanel] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [rewardNotice, setRewardNotice] = useState<RewardNotice | null>(null);
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null);
   const [pending, setPending] = useState(false);
@@ -47,6 +66,22 @@ export default function App() {
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.key]);
+
+  useEffect(() => {
+    const updateSettings = (event: Event) => {
+      const next = (event as CustomEvent<AppSettings>).detail;
+      if (next && typeof next.reduceMotion === 'boolean') setSettings(next);
+    };
+    addEventListener('but-settings-change', updateSettings);
+    return () => removeEventListener('but-settings-change', updateSettings);
+  }, []);
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setCommunityPanel(null);
+      setSettingsPanel(false);
+    }
+  }, [location.pathname]);
 
   // Navigation/unmount invalidates any unfinished create/join request.
   useEffect(() => {
@@ -91,6 +126,22 @@ export default function App() {
     const stopPlanErrors = room.onMessage<string>('plan-error', (code) =>
       setError(planError(code)),
     );
+    const stopRewards = room.onMessage<{
+      amount?: unknown;
+      breakdown?: RewardNotice['breakdown'];
+    }>('coins-earned', (payload) => {
+      if (
+        payload &&
+        typeof payload.amount === 'number' &&
+        Number.isFinite(payload.amount)
+      ) {
+        setRewardNotice({
+          amount: payload.amount,
+          breakdown: payload.breakdown ?? [],
+        });
+        dispatchEvent(new CustomEvent('but-reward-change'));
+      }
+    });
     room.onError(reportError);
     room.onLeave(disconnected);
     update();
@@ -101,16 +152,20 @@ export default function App() {
       stopErrors();
       stopWordErrors();
       stopPlanErrors();
+      stopRewards();
       if (room.connection.isOpen) void room.leave();
     };
   }, [room]);
 
   async function connect(profile: Profile, destination: Destination) {
-    const options: JoinOptions = profile;
     const attempt = ++requestId.current;
     setPending(true);
     setError('');
     try {
+      const authToken = await getAccessToken().catch(() => null);
+      const options: JoinOptions = authToken
+        ? { ...profile, authToken }
+        : profile;
       const joined: LobbyRoom =
         'code' in destination
           ? await lobbyClient.joinById(destination.code, options)
@@ -181,99 +236,146 @@ export default function App() {
   }
 
   return (
-    <MotionConfig reducedMotion="user" transition={spring}>
+    <MotionConfig
+      reducedMotion={settings.reduceMotion ? 'always' : 'user'}
+      transition={spring}
+    >
       <a className="skip-link" href="#main-content">
         {t.skipToContent}
       </a>
-      <header className="site-header shell">
-        <Link className="brand" to="/" aria-label={t.homeLabel}>
-          <svg className="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
-            <g transform="rotate(-10 20 20)">
-              <rect
-                x="3"
-                y="5"
-                width="34"
-                height="34"
-                rx="10"
-                className="die-edge"
-              />
-              <rect
-                x="3"
-                y="2"
-                width="34"
-                height="34"
-                rx="10"
-                className="die-face"
-              />
-              <circle cx="12" cy="11" r="3.5" className="die-pip" />
-              <circle cx="20" cy="19" r="3.5" className="die-pip" />
-              <circle cx="28" cy="27" r="3.5" className="die-pip" />
-            </g>
-          </svg>
-          but<span className="brand-suffix">.io</span>
-        </Link>
-        <GroupIndicator />
-      </header>
-      <main className="shell" id="main-content" tabIndex={-1}>
-        <GroupLobbyInviteBanner
-          onJoin={(invite) => joinGroupLobby(invite.lobbyCode)}
-        />
-        {error &&
-          snapshot?.phase !== 'playing' &&
-          (room ||
-            /^\/(friends|group|stats|leaderboard)/.test(location.pathname)) && (
-            <p className="notice global-notice" role="alert">
-              {error}
-            </p>
-          )}
-        <motion.div
-          key={location.pathname}
-          initial={reducedMotion ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <EntryForm pending={pending} error={error} connect={connect} />
-              }
-            />
-            <Route
-              path="/lobby/:code"
-              element={
-                <LobbyRoute
-                  room={room}
-                  snapshot={snapshot}
-                  pending={pending}
-                  error={error}
-                  connect={connect}
-                  send={send}
-                  leave={leave}
+      <div
+        className={`app-frame${communityPanel || settingsPanel ? ' is-community-open' : ''}`}
+      >
+        <header className="site-header shell">
+          <Link className="brand" to="/" aria-label={t.homeLabel}>
+            <svg className="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+              <g transform="rotate(-10 20 20)">
+                <rect
+                  x="3"
+                  y="5"
+                  width="34"
+                  height="34"
+                  rx="10"
+                  className="die-edge"
                 />
-              }
-            />
-            <Route
-              path="/friends"
-              element={<CommunityView feature="friends" />}
-            />
-            <Route path="/group" element={<CommunityView feature="group" />} />
-            <Route path="/stats" element={<CommunityView feature="stats" />} />
-            <Route
-              path="/leaderboard"
-              element={<CommunityView feature="leaderboard" />}
-            />
-            <Route
-              path="*"
-              element={
-                <>
-                  <h1>{t.pageNotFound}</h1>
-                  <Link to="/">{t.backHome}</Link>
-                </>
-              }
-            />
-          </Routes>
-        </motion.div>
-      </main>
+                <rect
+                  x="3"
+                  y="2"
+                  width="34"
+                  height="34"
+                  rx="10"
+                  className="die-face"
+                />
+                <circle cx="12" cy="11" r="3.5" className="die-pip" />
+                <circle cx="20" cy="19" r="3.5" className="die-pip" />
+                <circle cx="28" cy="27" r="3.5" className="die-pip" />
+              </g>
+            </svg>
+            but<span className="brand-suffix">.io</span>
+          </Link>
+          <div className="header-actions">
+            <GroupIndicator />
+            <CoinIndicator />
+          </div>
+        </header>
+        <main className="shell" id="main-content" tabIndex={-1}>
+          <RewardToast
+            notice={rewardNotice}
+            onDismiss={() => setRewardNotice(null)}
+          />
+          <GroupLobbyInviteBanner
+            onJoin={(invite) => joinGroupLobby(invite.lobbyCode)}
+          />
+          {error &&
+            snapshot?.phase !== 'playing' &&
+            (room ||
+              /^\/(friends|group|stats|leaderboard)/.test(
+                location.pathname,
+              )) && (
+              <p className="notice global-notice" role="alert">
+                {error}
+              </p>
+            )}
+          <motion.div
+            key={location.pathname}
+            initial={reducedMotion ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <EntryForm
+                    pending={pending}
+                    error={error}
+                    connect={connect}
+                    onOpenCommunity={(section, authMode) => {
+                      setCommunityAuthMode(authMode);
+                      setCommunityPanel(section);
+                    }}
+                    onOpenSettings={() => setSettingsPanel(true)}
+                    onOpenLocker={() => navigate('/locker')}
+                    settingsOpen={settingsPanel}
+                  />
+                }
+              />
+              <Route
+                path="/lobby/:code"
+                element={
+                  <LobbyRoute
+                    room={room}
+                    snapshot={snapshot}
+                    pending={pending}
+                    error={error}
+                    connect={connect}
+                    send={send}
+                    leave={leave}
+                  />
+                }
+              />
+              <Route
+                path="/friends"
+                element={<CommunityView feature="friends" />}
+              />
+              <Route
+                path="/group"
+                element={<CommunityView feature="group" />}
+              />
+              <Route
+                path="/stats"
+                element={<CommunityView feature="stats" />}
+              />
+              <Route
+                path="/leaderboard"
+                element={<CommunityView feature="leaderboard" />}
+              />
+              <Route path="/locker" element={<LockerView />} />
+              <Route
+                path="*"
+                element={
+                  <>
+                    <h1>{t.pageNotFound}</h1>
+                    <Link to="/">{t.backHome}</Link>
+                  </>
+                }
+              />
+            </Routes>
+          </motion.div>
+        </main>
+      </div>
+      <CommunityDrawer
+        section={communityPanel}
+        onSectionChange={setCommunityPanel}
+        authMode={communityAuthMode}
+        onClose={() => {
+          setCommunityPanel(null);
+          setCommunityAuthMode(undefined);
+        }}
+      />
+      <SettingsPanel
+        open={settingsPanel}
+        onClose={() => setSettingsPanel(false)}
+      />
     </MotionConfig>
   );
 }

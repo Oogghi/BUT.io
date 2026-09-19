@@ -35,6 +35,8 @@ import {
 } from './supabaseData';
 
 export type CommunityFeature = 'friends' | 'group' | 'stats' | 'leaderboard';
+export type CommunitySection = 'friends' | 'group';
+export type AuthMode = 'sign-in' | 'sign-up';
 
 const featureConfig: Record<
   CommunityFeature,
@@ -65,7 +67,17 @@ const featureConfig: Record<
 export function CommunityView({ feature }: { feature: CommunityFeature }) {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [error, setError] = useState('');
-  const config = featureConfig[feature];
+  const arenaPage = feature === 'stats' || feature === 'leaderboard';
+  const [arenaTab, setArenaTab] = useState<'stats' | 'leaderboard'>(
+    feature === 'leaderboard' ? 'leaderboard' : 'stats',
+  );
+  const config = arenaPage
+    ? {
+        icon: 'trophy' as const,
+        title: t.community.arenaTitle,
+        description: t.community.arenaDescription,
+      }
+    : featureConfig[feature];
 
   useEffect(() => {
     let active = true;
@@ -143,19 +155,38 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
         </div>
       )}
 
+      {account && arenaPage && (
+        <nav className="arena-tabs" aria-label={t.community.arenaTitle}>
+          <button
+            className={arenaTab === 'stats' ? 'is-active' : ''}
+            type="button"
+            onClick={() => setArenaTab('stats')}
+          >
+            <Icon name="stats" /> {t.stats}
+          </button>
+          <button
+            className={arenaTab === 'leaderboard' ? 'is-active' : ''}
+            type="button"
+            onClick={() => setArenaTab('leaderboard')}
+          >
+            <Icon name="trophy" /> {t.leaderboard}
+          </button>
+        </nav>
+      )}
+
       {account === undefined ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} />
       ) : !account ? (
-        <AuthPanel onAuthenticated={setAccount} />
+        <AuthPanel initialMode={undefined} onAuthenticated={setAccount} />
       ) : !account.username && !account.isAnonymous ? (
         <ProfileSetup account={account} onComplete={setAccount} />
       ) : feature === 'group' ? (
         <GroupFeature account={account} />
       ) : feature === 'friends' ? (
         <FriendsFeature account={account} />
-      ) : feature === 'stats' ? (
+      ) : arenaTab === 'stats' ? (
         <StatsFeature account={account} />
       ) : (
         <LeaderboardFeature account={account} />
@@ -164,12 +195,140 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
   );
 }
 
+export function CommunityDrawer({
+  section,
+  authMode,
+  onSectionChange,
+  onClose,
+}: {
+  section: CommunitySection | null;
+  authMode: AuthMode | undefined;
+  onSectionChange: (section: CommunitySection) => void;
+  onClose: () => void;
+}) {
+  const [account, setAccount] = useState<Account | null | undefined>(undefined);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!section) return;
+    let active = true;
+    void currentAccount(loadProfile().displayName)
+      .then((next) => {
+        if (active) setAccount(next);
+      })
+      .catch((cause) => {
+        if (active) {
+          setError(errorMessage(cause));
+          setAccount(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [section]);
+
+  async function leaveAccount() {
+    await signOut();
+    setAccount(null);
+  }
+
+  if (!section) return null;
+  return (
+    <div className="community-drawer-layer">
+      <button
+        className="community-drawer-backdrop"
+        type="button"
+        aria-label={t.community.closePanel}
+        onClick={onClose}
+      />
+      <aside className="community-drawer" aria-label={t.community.socialTitle}>
+        <header className="community-drawer-header">
+          <div className="community-drawer-heading">
+            <span className="community-drawer-icon" aria-hidden="true">
+              <Icon name="users" />
+            </span>
+            <div>
+              <span className="eyebrow">{t.community.socialTitle}</span>
+              <h2>{t.community.socialDescription}</h2>
+            </div>
+          </div>
+          <button
+            className="community-drawer-close"
+            type="button"
+            aria-label={t.community.closePanel}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+        <div className="community-drawer-tabs" role="tablist">
+          <button
+            className={section === 'friends' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={section === 'friends'}
+            onClick={() => onSectionChange('friends')}
+          >
+            <Icon name="users" /> {t.friends}
+          </button>
+          <button
+            className={section === 'group' ? 'is-active' : ''}
+            type="button"
+            role="tab"
+            aria-selected={section === 'group'}
+            onClick={() => onSectionChange('group')}
+          >
+            <Icon name="crown" /> {t.group}
+          </button>
+        </div>
+        <div className="community-drawer-body">
+          {account && (account.username || account.isAnonymous) && (
+            <div className="community-drawer-account">
+              <span>
+                {account.isAnonymous
+                  ? t.community.guestAccount
+                  : `${t.community.signedInAs} ${account.username}`}
+              </span>
+              <button
+                className="text-link"
+                type="button"
+                onClick={() => void leaveAccount()}
+              >
+                {t.community.signOut}
+              </button>
+            </div>
+          )}
+          {error ? (
+            <ErrorState message={error} />
+          ) : account === undefined ? (
+            <LoadingState />
+          ) : !account ? (
+            <AuthPanel
+              key={authMode ?? 'sign-in'}
+              initialMode={authMode}
+              onAuthenticated={setAccount}
+            />
+          ) : !account.username && !account.isAnonymous ? (
+            <ProfileSetup account={account} onComplete={setAccount} />
+          ) : section === 'friends' ? (
+            <FriendsFeature account={account} />
+          ) : (
+            <GroupFeature account={account} />
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 function AuthPanel({
+  initialMode = 'sign-in',
   onAuthenticated,
 }: {
+  initialMode: AuthMode | undefined;
   onAuthenticated: (account: Account) => void;
 }) {
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState(loadProfile().displayName);
@@ -626,6 +785,7 @@ function StatsFeature({ account }: { account: Account }) {
       <div className="community-game-grid">
         <GameStatsCard game={stats.games['bomb-party']} />
         <GameStatsCard game={stats.games['tank-arena']} />
+        <GameStatsCard game={stats.games['blackjack-party']} />
       </div>
       <RecentGames matches={stats.recentMatches} />
     </div>
@@ -649,42 +809,101 @@ function SummaryStat({
 
 function GameStatsCard({ game }: { game: GameStatsView }) {
   const bombParty = game.gameId === 'bomb-party';
-  const values = bombParty
+  const blackjack = game.gameId === 'blackjack-party';
+  const values = blackjack
     ? [
         [t.statGamesPlayed, game.gamesPlayed],
         [t.statWins, game.wins],
         [
-          t.community.wordsAccepted,
-          metric(game.metrics, 'words_accepted', 'wordsAccepted'),
+          t.community.roundsPlayed,
+          metric(game.metrics, 'roundsPlayed', 'rounds_played'),
         ],
         [
-          t.community.bestStreak,
-          metric(game.metrics, 'best_streak', 'bestStreak'),
+          t.community.roundsWon,
+          metric(game.metrics, 'roundsWon', 'rounds_won'),
+        ],
+        [t.community.blackjacks, metric(game.metrics, 'blackjacks')],
+        [t.community.busts, metric(game.metrics, 'busts')],
+        [
+          t.community.doubleDownWins,
+          metric(game.metrics, 'doubleDownWins', 'double_down_wins'),
         ],
         [
-          t.community.livesRecovered,
-          metric(game.metrics, 'lives_recovered', 'livesRecovered'),
+          t.community.splitWins,
+          metric(game.metrics, 'splitWins', 'split_wins'),
+        ],
+        [
+          t.community.perfectPairsWins,
+          metric(game.metrics, 'perfectPairsWins', 'perfect_pairs_wins'),
+        ],
+        [
+          t.community.twentyOnePlusThreeWins,
+          metric(
+            game.metrics,
+            'twentyOnePlusThreeWins',
+            'twenty_one_plus_three_wins',
+          ),
+        ],
+        [
+          t.community.highestChipBalance,
+          metric(
+            game.metrics,
+            'highestEndingChipBalance',
+            'highest_ending_chip_balance',
+          ),
+        ],
+        [t.community.rebuys, metric(game.metrics, 'rebuys')],
+        [
+          t.community.rebuyCoinsSpent,
+          metric(
+            game.metrics,
+            'globalCurrencySpentOnRebuys',
+            'global_currency_spent_on_rebuys',
+          ),
         ],
       ]
-    : [
-        [t.statGamesPlayed, game.gamesPlayed],
-        [t.statWins, game.wins],
-        [t.community.kills, metric(game.metrics, 'kills')],
-        [t.community.deaths, metric(game.metrics, 'deaths')],
-        [
-          t.statDamageDealt,
-          metric(game.metrics, 'damage_dealt', 'damageDealt'),
-        ],
-        [
-          t.community.shotsFired,
-          metric(game.metrics, 'shots_fired', 'shotsFired'),
-        ],
-        [t.community.shotsHit, metric(game.metrics, 'shots_hit', 'shotsHit')],
-        [t.statAccuracy, formatStatPercent(gameAccuracy(game))],
-      ];
+    : bombParty
+      ? [
+          [t.statGamesPlayed, game.gamesPlayed],
+          [t.statWins, game.wins],
+          [
+            t.community.wordsAccepted,
+            metric(game.metrics, 'words_accepted', 'wordsAccepted'),
+          ],
+          [
+            t.community.bestStreak,
+            metric(game.metrics, 'best_streak', 'bestStreak'),
+          ],
+          [
+            t.community.livesRecovered,
+            metric(game.metrics, 'lives_recovered', 'livesRecovered'),
+          ],
+        ]
+      : [
+          [t.statGamesPlayed, game.gamesPlayed],
+          [t.statWins, game.wins],
+          [t.community.kills, metric(game.metrics, 'kills')],
+          [t.community.deaths, metric(game.metrics, 'deaths')],
+          [
+            t.statDamageDealt,
+            metric(game.metrics, 'damage_dealt', 'damageDealt'),
+          ],
+          [
+            t.community.shotsFired,
+            metric(game.metrics, 'shots_fired', 'shotsFired'),
+          ],
+          [t.community.shotsHit, metric(game.metrics, 'shots_hit', 'shotsHit')],
+          [t.statAccuracy, formatStatPercent(gameAccuracy(game))],
+        ];
   return (
     <section className="community-game-card panel">
-      <h2>{bombParty ? 'Bomb Party' : 'Tank Arena'}</h2>
+      <h2>
+        {blackjack
+          ? 'Blackjack Party'
+          : bombParty
+            ? 'Bomb Party'
+            : 'Tank Arena'}
+      </h2>
       <dl className="community-stat-grid">
         {values.map(([label, value]) => (
           <div key={label}>
@@ -721,7 +940,11 @@ function RecentGames({
                     : t.community.draw}
               </span>
               <strong>
-                {match.gameId === 'bomb-party' ? 'Bomb Party' : 'Tank Arena'}
+                {match.gameId === 'bomb-party'
+                  ? 'Bomb Party'
+                  : match.gameId === 'blackjack-party'
+                    ? 'Blackjack Party'
+                    : 'Tank Arena'}
               </strong>
               <time dateTime={match.playedAt}>
                 {formatDate(match.playedAt)}
@@ -746,7 +969,9 @@ function LeaderboardFeature({ account }: { account: Account }) {
     { value: 'winRate', label: t.community.winRateRanking },
     ...(gameId === 'bomb-party'
       ? [{ value: 'bestStreak' as const, label: t.community.bestStreakRanking }]
-      : [{ value: 'kills' as const, label: t.community.killsRanking }]),
+      : gameId === 'tank-arena'
+        ? [{ value: 'kills' as const, label: t.community.killsRanking }]
+        : []),
   ];
 
   useEffect(() => {
@@ -784,6 +1009,7 @@ function LeaderboardFeature({ account }: { account: Account }) {
           >
             <option value="bomb-party">Bomb Party</option>
             <option value="tank-arena">Tank Arena</option>
+            <option value="blackjack-party">Blackjack Party</option>
           </select>
         </label>
         <label>

@@ -168,7 +168,7 @@ const INERTIA = (TANK_W ** 2 + TANK_H ** 2) / 12;
 const RESTITUTION = 0.15;
 /** Slower impacts do not bounce, so resting tanks settle instead of jittering. */
 const BOUNCE_SPEED = 80;
-const FRICTION = 0.9;
+const DEFAULT_FRICTION = 0.9;
 /** Collision samples around the box, relative to its center (y down, before rotation). */
 const SAMPLES: (readonly [number, number])[] = [];
 for (let index = 0; index <= 8; index++) {
@@ -276,6 +276,7 @@ function respond(
   nx: number,
   ny: number,
   share: number,
+  frictionCoefficient: number,
 ) {
   let vx = body.vx - body.av * ry;
   let vy = body.vy + body.av * rx;
@@ -292,8 +293,8 @@ function respond(
   const rt = rx * ty - ry * tx;
   const slide = -(vx * tx + vy * ty) / (1 + (rt * rt) / INERTIA) / share;
   const friction = Math.max(
-    -FRICTION * normal,
-    Math.min(FRICTION * normal, slide),
+    -frictionCoefficient * normal,
+    Math.min(frictionCoefficient * normal, slide),
   );
   applyImpulse(body, rx, ry, friction * tx, friction * ty);
   return true;
@@ -307,6 +308,7 @@ function collide(
   solid: Solid,
   center: { x: number; y: number },
   body: TankBody,
+  frictionCoefficient: number,
 ) {
   let touched = false;
   for (let pass = 0; pass < 4; pass++) {
@@ -329,7 +331,8 @@ function collide(
     center.x += px / length;
     center.y += py / length;
     for (const [rx, ry, nx, ny] of contacts)
-      if (respond(body, rx, ry, nx, ny, contacts.length)) touched = true;
+      if (respond(body, rx, ry, nx, ny, contacts.length, frictionCoefficient))
+        touched = true;
   }
   return touched;
 }
@@ -339,18 +342,24 @@ function collide(
  * that move and rotate it and resolve contacts against `solid` with a little bounce and
  * strong friction. Returns whether it touched anything during the tick.
  */
-export function stepTank(solid: Solid, width: number, body: TankBody): boolean {
+export function stepTank(
+  solid: Solid,
+  width: number,
+  body: TankBody,
+  frictionCoefficient = DEFAULT_FRICTION,
+  gravity = GRAVITY,
+): boolean {
   const reach = Math.hypot(body.vx, body.vy) + Math.abs(body.av) * HALF_W;
   const steps = Math.max(1, Math.ceil((reach * DT) / 2));
   const h = DT / steps;
   const center = centerOf(body);
   let touched = false;
   for (let step = 0; step < steps; step++) {
-    body.vy += GRAVITY * h;
+    body.vy += gravity * h;
     center.x += body.vx * h;
     center.y += body.vy * h;
     body.angle += body.av * h;
-    if (collide(solid, center, body)) touched = true;
+    if (collide(solid, center, body, frictionCoefficient)) touched = true;
   }
   body.angle = Math.atan2(Math.sin(body.angle), Math.cos(body.angle));
   body.x = wrapX(center.x - HALF_H * Math.sin(body.angle), width);
@@ -378,6 +387,97 @@ export function stable(solid: Solid, tank: TankPose) {
   return left <= 2 && right >= -2;
 }
 
+/** Spike Bubble: radius of the bouncing ball and its launch speed at full power. */
+export const BUBBLE_RADIUS = 84;
+export const BUBBLE_SPEED = 1150;
+/** Share of speed kept through a bounce. */
+const BUBBLE_BOUNCE = 0.88;
+const BUBBLE_PROBES = Array.from(
+  { length: 16 },
+  (_, index) =>
+    [
+      Math.cos((index * Math.PI) / 8) * BUBBLE_RADIUS,
+      Math.sin((index * Math.PI) / 8) * BUBBLE_RADIUS,
+    ] as const,
+);
+
+/**
+ * One tick of the Spike Bubble (a ball centered at x, y) in sub-steps of at most 2px: it
+ * pushes out of whatever it overlaps and bounces off it, keeping most of its speed.
+ * Returns whether it bounced during the tick.
+ */
+export function stepBubble(
+  solid: Solid,
+  width: number,
+  body: Ballistic,
+  gravity = GRAVITY,
+): boolean {
+  const steps = Math.max(1, Math.ceil((Math.hypot(body.vx, body.vy) * DT) / 2));
+  const h = DT / steps;
+  let bounced = false;
+  for (let step = 0; step < steps; step++) {
+    body.vy += gravity * 0.45 * h;
+    body.x = wrapX(body.x + body.vx * h, width);
+    body.y += body.vy * h;
+    for (let pass = 0; pass < 8; pass++) {
+      let nx = 0;
+      let ny = 0;
+      for (const [dx, dy] of BUBBLE_PROBES)
+        if (solid(body.x + dx, body.y + dy)) {
+          nx -= dx;
+          ny -= dy;
+        }
+      const length = Math.hypot(nx, ny);
+      if (!length) break;
+      nx /= length;
+      ny /= length;
+      body.x = wrapX(body.x + nx, width);
+      body.y += ny;
+      const approach = body.vx * nx + body.vy * ny;
+      if (approach < 0) {
+        body.vx -= (1 + BUBBLE_BOUNCE) * approach * nx;
+        body.vy -= (1 + BUBBLE_BOUNCE) * approach * ny;
+        bounced = true;
+      }
+    }
+  }
+  return bounced;
+}
+
+/** Predicted center path of a Spike Bubble launch up to its first bounce. */
+export function bubblePreview(
+  terrain: Terrain,
+  from: { x: number; y: number },
+  velocity: { vx: number; vy: number },
+  solid: Solid = (x, y) => terrain.solid(x, y),
+  maxTicks = TICK_RATE * 4,
+): number[] {
+  const body = { ...from, ...velocity };
+  const points = [body.x, body.y];
+  for (let tick = 0; tick < maxTicks; tick++) {
+    const bounced = stepBubble(
+      solid,
+      terrain.map.width,
+      body,
+      terrain.map.gravity,
+    );
+    points.push(body.x, body.y);
+    if (bounced || body.y > terrain.map.waterY) break;
+  }
+  return points;
+}
+
+/** Puts a tank's feet so that its center of mass sits at (x, y). */
+export function placeCenter(
+  tank: TankPose,
+  x: number,
+  y: number,
+  width: number,
+) {
+  tank.x = wrapX(x - HALF_H * Math.sin(tank.angle), width);
+  tank.y = y + HALF_H * Math.cos(tank.angle);
+}
+
 /**
  * Predicted feet path of a jump: the free arc up to its first contact (ground, wall, ceiling
  * or another tank), as flattened points. It stops there rather than showing the aftermath.
@@ -392,7 +492,13 @@ export function jumpPreview(
   const body: TankBody = { ...from, ...velocity, av: 0 };
   const points = [body.x, body.y];
   for (let tick = 0; tick < maxTicks; tick++) {
-    const touched = stepTank(solid, terrain.map.width, body);
+    const touched = stepTank(
+      solid,
+      terrain.map.width,
+      body,
+      terrain.map.friction,
+      terrain.map.gravity,
+    );
     points.push(body.x, body.y);
     if (touched || body.y > terrain.map.waterY) break;
   }
@@ -414,6 +520,7 @@ export function shellPreview(
       body,
       (x, y) => solid(x, y) || y > terrain.map.waterY,
       terrain.map.width,
+      terrain.map.gravity,
     );
     points.push(body.x, body.y);
     if (done) break;

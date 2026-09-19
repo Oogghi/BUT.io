@@ -8,9 +8,13 @@ import {
   type Textures,
 } from 'phaser';
 import {
+  BUBBLE_SPRITE,
   PLANNING_SECONDS,
+  actionIconFiles,
+  actionIconSlots,
   actions,
   maps,
+  pickupIconSlots,
   sampleAngle,
   samplePath,
   tanks,
@@ -25,11 +29,15 @@ import {
   type TankId,
 } from './index.js';
 import {
+  BUBBLE_RADIUS,
+  BUBBLE_SPEED,
   SHELL_SPEED,
   TANK_H,
   TANK_W,
   TICK_RATE,
   Terrain,
+  bubblePreview,
+  centerOf,
   clampJumpAngle,
   insideTank,
   jumpPreview,
@@ -101,6 +109,8 @@ export interface ArenaHud {
   error: boolean;
   /** Shown in the control bar when there are no actions (replays, spectating). */
   stageLabel: string;
+  /** Text of the lock-in button ("Ready" / "Prêt"). */
+  readyLabel: string;
 }
 
 export interface ArenaCallbacks {
@@ -111,39 +121,37 @@ export interface ArenaCallbacks {
 }
 
 const SPRITE_SCALE = 180 / 384;
+/** Half the visible hull width: how far from an edge a whole tank's center must be drawn. */
+const EDGE_REACH = 80;
 /** Drag distance (world px) that maps to full power. */
 const AIM_REACH = 380;
 /** Control bar across the water at the bottom of the arena. */
-const BAR_Y = 890;
-const BAR_TOP = 848;
-const POWER_X = 1010;
-const TIMER_X = 1462;
-const LOCK_X = 1588;
+/** Compact control bar, centered over the water at the bottom of the arena. */
+const BAR_Y = 896;
+const BAR_TOP = 856;
+const SQUARE = 64;
+const GAP = 10;
+const READY_W = 170;
+/** Turn timer, centered at the top. */
+const TIMER_Y = 52;
 /** `Phaser.TintModes` values (tint color and mode are separate in Phaser 4). */
 const TINT_MULTIPLY = 0;
 const TINT_FILL = 1;
 const FONT = '"Bricolage Grotesque", system-ui, sans-serif';
-const PICKUP_STYLE: Record<PickupKind, [number, string]> = {
-  heal: [0x45dcae, '✚'],
-  damage: [0xff6b4a, '⚡'],
-  cooldown: [0x6cc4ff, '⟳'],
-  shield: [0x4d7cff, '⛨'],
-  poison: [0x7ed957, '☠'],
-  freeze: [0xbfeaff, '❄'],
-};
 const TRAIL: Partial<Record<ReplayTrack['kind'], string>> = {
   shell: 'smoke',
   bomblet: 'smoke',
   strike: 'fire',
   toxic: 'toxic',
+  pulse: 'smoke',
 };
 
 interface TankSprite {
   root: GameObjects.Container;
   body: GameObjects.Image;
-  /** Copy drawn across the seam while the tank straddles a wrapped edge. */
-  ghost: GameObjects.Image;
   shadow: GameObjects.Ellipse;
+  /** Spike Bubble art, shown instead of the hull while the bubble is active. */
+  bubble: GameObjects.Image;
   bar: GameObjects.Graphics;
   label: GameObjects.Text;
   status: GameObjects.Text;
@@ -226,11 +234,9 @@ export function mountArena(
     private hint!: GameObjects.Text;
     private stageText!: GameObjects.Text;
     private timerText!: GameObjects.Text;
-    private powerText!: GameObjects.Text;
-    private roster = new Map<
-      string,
-      { image: GameObjects.Image; name: GameObjects.Text }
-    >();
+    private hudPanel!: GameObjects.Graphics;
+    private actionTextures = new Map<ActionId, string>();
+    private pickupTextures = new Map<PickupKind, string>();
 
     constructor() {
       super('tank-arena');
@@ -239,6 +245,14 @@ export function mountArena(
     preload() {
       this.load.image('background', map.background);
       this.load.image('terrain', map.terrain);
+      this.load.image('action-atlas', '/tank-arena/tank-arena-icon-atlas.png');
+      this.load.image(
+        'pickup-atlas',
+        '/tank-arena/tank-arena-pickup-atlas.png',
+      );
+      for (const [action, file] of Object.entries(actionIconFiles))
+        this.load.image(`action-file-${action}`, file);
+      this.load.image('spike-bubble', BUBBLE_SPRITE);
       for (const [id, info] of Object.entries(tanks))
         this.load.image(`tank-${id}`, info.sprite);
     }
@@ -248,6 +262,8 @@ export function mountArena(
         .setZoom(resolution)
         .centerOn(map.width / 2, map.height / 2);
       this.makeTextures();
+      this.makeActionIconTextures();
+      this.makePickupIconTextures();
       this.add.image(0, 0, 'background').setOrigin(0).setDepth(0);
       this.water = this.add.graphics().setDepth(1);
       this.terrainTexture = this.textures.createCanvas(
@@ -405,7 +421,7 @@ export function mountArena(
       if (this.playback) this.stepPlayback();
       for (const sprite of this.tanks.values()) {
         this.animateTank(sprite, time, delta);
-        this.mirror(sprite);
+        this.keepWhole(sprite);
       }
       this.drawPreview(time);
       this.drawHud(time);
@@ -417,11 +433,14 @@ export function mountArena(
       pendingHud = hud;
       if (!this.ready) return;
       this.hud = hud;
+      this.hint.setText(hud.hint).setColor(hud.error ? '#ffb4a6' : '#ffffff');
+      this.stageText.setText(hud.actions.length ? '' : hud.stageLabel);
       const key = JSON.stringify([
         hud.actions,
         hud.selected,
         hud.confirm,
-        hud.showPower,
+        hud.readyLabel,
+        hud.stageLabel,
       ]);
       if (key !== this.hudKey) {
         const locked =
@@ -429,14 +448,10 @@ export function mountArena(
         this.hudKey = key;
         this.buildControls(locked);
       }
-      this.hint.setText(hud.hint).setColor(hud.error ? '#ffb4a6' : '#ffffff');
-      this.stageText.setText(hud.actions.length ? '' : hud.stageLabel);
     }
 
     private createHud() {
-      const panel = this.add.graphics().setDepth(11);
-      panel.fillStyle(0x13111f, 0.8);
-      panel.fillRoundedRect(12, BAR_TOP, map.width - 24, 84, 24);
+      this.hudPanel = this.add.graphics().setDepth(11);
       this.hudGraphics = this.add.graphics().setDepth(12);
       const text = (x: number, y: number, size: number) =>
         this.add
@@ -450,10 +465,9 @@ export function mountArena(
             strokeThickness: 6,
           })
           .setDepth(13);
-      this.hint = text(28, BAR_TOP - 8, 22).setOrigin(0, 1);
-      this.stageText = text(map.width / 2, BAR_Y, 30).setOrigin(0.5);
-      this.timerText = text(TIMER_X, BAR_Y, 24).setOrigin(0.5);
-      this.powerText = text(POWER_X + 250, BAR_Y, 22).setOrigin(0, 0.5);
+      this.hint = text(map.width / 2, BAR_TOP - 10, 22).setOrigin(0.5, 1);
+      this.stageText = text(map.width / 2, BAR_Y, 26).setOrigin(0.5);
+      this.timerText = text(map.width / 2, TIMER_Y, 26).setOrigin(0.5);
     }
 
     /** Chunky toy buttons: a solid face on a darker offset edge. */
@@ -467,14 +481,14 @@ export function mountArena(
     ) {
       const g = this.add.graphics();
       g.fillStyle(edge, 1);
-      g.fillRoundedRect(-width / 2, -24, width, 58, 16);
+      g.fillRoundedRect(-width / 2, -SQUARE / 2 + 5, width, SQUARE, 16);
       g.fillStyle(face, 1);
-      g.fillRoundedRect(-width / 2, -29, width, 58, 16);
+      g.fillRoundedRect(-width / 2, -SQUARE / 2, width, SQUARE, 16);
       const root = this.add
         .container(x, BAR_Y, [g])
         .setDepth(13)
         .setAlpha(disabled ? 0.4 : 1)
-        .setSize(width, 58);
+        .setSize(width, SQUARE);
       if (disabled) return root;
       root.setInteractive({ useHandCursor: true });
       root.on('pointerover', () => (root.y = BAR_Y - 3));
@@ -487,50 +501,132 @@ export function mountArena(
       return root;
     }
 
+    private makeActionIconTextures() {
+      const source = this.textures
+        .get('action-atlas')
+        .getSourceImage() as HTMLImageElement;
+      const cellWidth = Math.floor(source.width / 4);
+      const cellHeight = Math.floor(source.height / 3);
+
+      for (const [action, slot] of Object.entries(actionIconSlots) as Array<
+        [ActionId, readonly [number, number]]
+      >) {
+        const key = `action-icon-${action}`;
+        const texture = this.textures.createCanvas(key, cellWidth, cellHeight)!;
+        texture.context.drawImage(
+          source,
+          slot[0] * cellWidth,
+          slot[1] * cellHeight,
+          cellWidth,
+          cellHeight,
+          0,
+          0,
+          cellWidth,
+          cellHeight,
+        );
+        texture.refresh();
+        this.actionTextures.set(action, key);
+      }
+    }
+
+    private actionIcon(action: ActionId) {
+      const texture =
+        this.actionTextures.get(action) ?? `action-file-${action}`;
+      return this.add.image(0, 0, texture).setDisplaySize(50, 50);
+    }
+
+    private makePickupIconTextures() {
+      const source = this.textures
+        .get('pickup-atlas')
+        .getSourceImage() as HTMLImageElement;
+      const cellWidth = Math.floor(source.width / 3);
+      const cellHeight = Math.floor(source.height / 2);
+
+      for (const [kind, slot] of Object.entries(pickupIconSlots) as Array<
+        [PickupKind, readonly [number, number]]
+      >) {
+        const key = `pickup-icon-${kind}`;
+        const texture = this.textures.createCanvas(key, cellWidth, cellHeight)!;
+        texture.context.drawImage(
+          source,
+          slot[0] * cellWidth,
+          slot[1] * cellHeight,
+          cellWidth,
+          cellHeight,
+          0,
+          0,
+          cellWidth,
+          cellHeight,
+        );
+        texture.refresh();
+        this.pickupTextures.set(kind, key);
+      }
+    }
+
+    private pickupIcon(kind: PickupKind) {
+      const texture = this.pickupTextures.get(kind) ?? 'pickup-atlas';
+      return this.add.image(0, 0, texture).setDisplaySize(56, 56);
+    }
+
+    /**
+     * The bar is sized to its contents and centered: square action buttons (key, icon,
+     * cooldown) and a Ready text button. Once ready, the plan is final: everything is
+     * shown disabled until the turn resolves.
+     */
     private buildControls(justLocked: boolean) {
       for (const control of this.hudControls) control.destroy();
       this.hudControls = [];
+      this.hudPanel.clear();
       const hud = this.hud!;
+      const count = hud.actions.length;
+      const ready = hud.confirm !== 'hidden';
+      const width = count
+        ? count * SQUARE + (count - 1) * GAP + (ready ? GAP * 2 + READY_W : 0)
+        : hud.stageLabel
+          ? this.stageText.width + 20
+          : 0;
+      if (!width) return;
+      const left = (map.width - width) / 2;
+      this.hudPanel.fillStyle(0x13111f, 0.82);
+      this.hudPanel.fillRoundedRect(left - 14, BAR_TOP, width + 28, 84, 22);
+
+      const locked = hud.confirm === 'locked';
       hud.actions.forEach((action, index) => {
         const selected = action.id === hud.selected;
         const root = this.button(
-          28 + 88 + index * 186,
-          176,
+          left + SQUARE / 2 + index * (SQUARE + GAP),
+          SQUARE,
           selected ? 0xffc43d : 0x29253f,
           selected ? 0xa8760b : 0x08060e,
-          action.disabled,
+          action.disabled || locked,
           () => callbacks.onAction(action.id),
         );
-        const chip = this.add.graphics();
-        chip.fillStyle(0x000000, 0.3);
-        chip.fillRoundedRect(-78, -14, 26, 26, 7);
+        // A locked plan keeps its chosen action bright.
+        if (locked && selected) root.setAlpha(1);
+        const icon = this.actionIcon(action.id).setDisplaySize(42, 42);
         const key = this.add
-          .text(-65, 0, action.key, {
+          .text(-SQUARE / 2 + 9, -SQUARE / 2 + 7, action.key, {
             fontFamily: FONT,
             resolution,
-            fontSize: '16px',
+            fontSize: '13px',
             fontStyle: '800',
-            color: '#ffffff',
+            color: selected ? '#16111f' : '#ffffffaa',
           })
           .setOrigin(0.5);
-        const name = this.add
-          .text(-44, 0, action.name, {
-            fontFamily: FONT,
-            resolution,
-            fontSize: '20px',
-            fontStyle: '800',
-            color: selected ? '#16111f' : '#ffffff',
-          })
-          .setOrigin(0, 0.5);
-        if (name.width > 124) name.setScale(124 / name.width);
-        root.add([chip, key, name]);
+        root.setName(action.name);
+        root.add([icon, key]);
         if (action.cooldown > 0) {
-          const badge = this.add.circle(78, -28, 14, 0xff6b4a);
+          const badge = this.add.circle(
+            SQUARE / 2 - 4,
+            -SQUARE / 2 + 4,
+            12,
+            0xff6b4a,
+          );
           const turns = this.add
-            .text(78, -28, String(action.cooldown), {
+            .text(SQUARE / 2 - 4, -SQUARE / 2 + 4, String(action.cooldown), {
               fontFamily: FONT,
               resolution,
-              fontSize: '16px',
+              fontSize: '14px',
               fontStyle: '800',
               color: '#16111f',
             })
@@ -540,58 +636,40 @@ export function mountArena(
         this.hudControls.push(root);
       });
 
-      if (hud.confirm === 'hidden') return;
-      // Lock in: a round check button that stays put; a soft ring invites the click.
-      const locked = hud.confirm === 'locked';
+      if (!ready) return;
       const disabled = hud.confirm === 'disabled';
       const [face, edge] = locked
         ? [0x45dcae, 0x1c7c5f]
         : disabled
           ? [0x29253f, 0x08060e]
           : [0xff6b4a, 0x9e2f1d];
-      const g = this.add.graphics();
-      g.fillStyle(edge, 1);
-      g.fillCircle(0, 5, 36);
-      g.fillStyle(face, 1);
-      g.fillCircle(0, 0, 36);
-      const check = this.add.graphics();
-      check.lineStyle(9, 0x16111f, 1);
-      check.beginPath();
-      check.moveTo(-15, 1);
-      check.lineTo(-4, 12);
-      check.lineTo(16, -11);
-      check.strokePath();
-      const ring = this.add.circle(0, 0, 40).setStrokeStyle(4, face, 0.8);
-      const root = this.add
-        .container(LOCK_X, BAR_Y, [ring, g, check])
-        .setDepth(13)
-        .setAlpha(disabled ? 0.4 : 1)
-        .setSize(80, 80);
+      const root = this.button(
+        left + width - READY_W / 2,
+        READY_W,
+        face,
+        edge,
+        disabled || locked,
+        () => callbacks.onConfirm(),
+      );
+      if (locked) root.setAlpha(1);
+      const label = this.add
+        .text(0, 0, `${locked ? '✓ ' : ''}${hud.readyLabel}`, {
+          fontFamily: FONT,
+          resolution,
+          fontSize: '24px',
+          fontStyle: '800',
+          color: disabled ? '#ffffff' : '#16111f',
+        })
+        .setOrigin(0.5);
+      root.add(label);
       this.hudControls.push(root);
-      if (!locked && !disabled && !calm)
-        this.tweens.add({
-          targets: ring,
-          scale: 1.3,
-          alpha: 0,
-          duration: 1100,
-          repeat: -1,
-        });
       if (justLocked && !calm)
         this.tweens.add({
-          targets: check,
-          scale: { from: 1.5, to: 1 },
+          targets: label,
+          scale: { from: 1.3, to: 1 },
           duration: 300,
           ease: 'Back.easeOut',
         });
-      if (disabled) return;
-      root.setInteractive({ useHandCursor: true });
-      root.on('pointerover', () => root.setScale(1.08));
-      root.on('pointerout', () => root.setScale(1));
-      root.on('pointerdown', () => root.setScale(0.94));
-      root.on('pointerup', () => {
-        root.setScale(1.08);
-        callbacks.onConfirm();
-      });
     }
 
     private drawHud(time: number) {
@@ -600,18 +678,19 @@ export function mountArena(
       const hud = this.hud;
       const planning = this.view?.stage === 'planning' && !this.playback;
 
-      // Timer: a ring that empties, urgent coral in the last five seconds.
+      // Timer at the top center: a ring that empties, urgent coral in the last five seconds.
       if (hud && hud.endsAt && planning) {
         const seconds = Math.max(0, (hud.endsAt - performance.now()) / 1000);
         const urgent = seconds <= 5;
-        g.fillStyle(0x29253f, 1);
-        g.fillCircle(TIMER_X, BAR_Y, 30);
+        const x = map.width / 2;
+        g.fillStyle(0x13111f, 0.82);
+        g.fillCircle(x, TIMER_Y, 34);
         g.lineStyle(7, urgent ? 0xff6b4a : 0x45dcae, 1);
         g.beginPath();
         g.arc(
-          TIMER_X,
-          BAR_Y,
-          26,
+          x,
+          TIMER_Y,
+          27,
           -Math.PI / 2,
           -Math.PI / 2 + (seconds / PLANNING_SECONDS) * Math.PI * 2,
         );
@@ -623,113 +702,6 @@ export function mountArena(
             urgent && !calm ? 1 + Math.abs(Math.sin(time / 160)) * 0.15 : 1,
           );
       } else this.timerText.setVisible(false);
-
-      // Power: a bolt icon and a gauge that heats up.
-      const power = hud?.showPower && planning ? this.aim?.power : undefined;
-      this.powerText.setVisible(power !== undefined);
-      if (power !== undefined) {
-        const color =
-          power > 0.8 ? 0xff6b4a : power > 0.5 ? 0xffc43d : 0x45dcae;
-        g.fillStyle(color, 1);
-        g.beginPath();
-        g.moveTo(POWER_X + 6, BAR_Y - 20);
-        g.lineTo(POWER_X - 10, BAR_Y + 3);
-        g.lineTo(POWER_X, BAR_Y + 3);
-        g.lineTo(POWER_X - 6, BAR_Y + 20);
-        g.lineTo(POWER_X + 12, BAR_Y - 5);
-        g.lineTo(POWER_X + 2, BAR_Y - 5);
-        g.closePath();
-        g.fillPath();
-        g.fillStyle(0x29253f, 1);
-        g.fillRoundedRect(POWER_X + 28, BAR_Y - 9, 210, 18, 9);
-        g.fillStyle(color, 1);
-        g.fillRoundedRect(
-          POWER_X + 28,
-          BAR_Y - 9,
-          Math.max(18, 210 * power),
-          18,
-          9,
-        );
-        this.powerText.setText(`${Math.round(power * 100)}%`);
-      }
-
-      this.drawRoster(g);
-    }
-
-    /** Player cards across the top: tank, name, live health and lock-in check. */
-    private drawRoster(g: GameObjects.Graphics) {
-      const players = this.view?.players ?? [];
-      const width = 196;
-      const gap = 8;
-      const left = (map.width - players.length * (width + gap) + gap) / 2;
-      const top = 12;
-      players.forEach((player, index) => {
-        let card = this.roster.get(player.id);
-        if (!card) {
-          card = {
-            image: this.add
-              .image(0, 0, `tank-${player.tank}`)
-              .setDisplaySize(57, 38)
-              .setDepth(12),
-            name: this.add
-              .text(
-                0,
-                0,
-                player.name.length > 13
-                  ? `${player.name.slice(0, 12)}…`
-                  : player.name,
-                {
-                  fontFamily: FONT,
-                  resolution,
-                  fontSize: '17px',
-                  fontStyle: '800',
-                  color: player.you ? '#ffc43d' : '#ffffff',
-                },
-              )
-              .setDepth(12),
-          };
-          this.roster.set(player.id, card);
-        }
-        const sprite = this.tanks.get(player.id);
-        const alive = sprite ? sprite.alive : player.alive;
-        const x = left + index * (width + gap);
-        g.fillStyle(0x13111f, 0.8);
-        g.fillRoundedRect(x, top, width, 54, 14);
-        if (player.you) {
-          g.lineStyle(3, 0xffc43d, 1);
-          g.strokeRoundedRect(x, top, width, 54, 14);
-        }
-        card.image.setPosition(x + 34, top + 27).setAlpha(alive ? 1 : 0.35);
-        card.name.setPosition(x + 66, top + 7).setAlpha(alive ? 1 : 0.35);
-        const ratio = Math.max(
-          0,
-          (sprite?.shownHealth ?? player.health) / player.maxHealth,
-        );
-        g.fillStyle(0x08060e, 1);
-        g.fillRoundedRect(x + 66, top + 34, 96, 9, 4);
-        if (alive) {
-          g.fillStyle(
-            ratio > 0.5 ? 0x45dcae : ratio > 0.25 ? 0xffc43d : 0xff6b4a,
-            1,
-          );
-          g.fillRoundedRect(x + 66, top + 34, Math.max(9, 96 * ratio), 9, 4);
-        }
-        if (
-          alive &&
-          player.confirmed &&
-          this.view?.stage === 'planning' &&
-          !this.playback
-        ) {
-          g.fillStyle(0x45dcae, 1);
-          g.fillCircle(x + width - 18, top + 27, 11);
-          g.lineStyle(4, 0x16111f, 1);
-          g.beginPath();
-          g.moveTo(x + width - 23, top + 27);
-          g.lineTo(x + width - 19, top + 31);
-          g.lineTo(x + width - 12, top + 22);
-          g.strokePath();
-        }
-      });
     }
 
     // ---- state ----
@@ -823,26 +795,26 @@ export function mountArena(
         })
         .setOrigin(0.5)
         .setVisible(false);
+      // The art's sphere spans ~77% of the image; size it to the physical bubble.
+      const bubble = this.add
+        .image(0, 0, 'spike-bubble')
+        .setDisplaySize((BUBBLE_RADIUS * 2) / 0.77, (BUBBLE_RADIUS * 2) / 0.77)
+        .setVisible(false);
       const root = this.add
         .container(player.x, player.y, [
           shadow,
           body,
+          bubble,
           bar,
           label,
           status,
           badge,
         ])
         .setDepth(5);
-      const ghost = this.add
-        .image(0, 0, `tank-${player.tank}`)
-        .setOrigin(0.5, 0.87)
-        .setScale(SPRITE_SCALE)
-        .setDepth(5)
-        .setVisible(false);
       const sprite: TankSprite = {
         root,
+        bubble,
         body,
-        ghost,
         shadow,
         bar,
         label,
@@ -906,22 +878,9 @@ export function mountArena(
           existing.setPosition(pickup.x, pickup.y - 20);
           continue;
         }
-        const [color, icon] = PICKUP_STYLE[pickup.kind];
-        const glow = this.add.circle(0, 0, 26, color, 0.25);
-        const box = this.add
-          .rectangle(0, 0, 32, 32, color)
-          .setStrokeStyle(3, 0x16111f);
-        const glyph = this.add
-          .text(0, 1, icon, {
-            fontFamily: FONT,
-            resolution,
-            fontSize: '20px',
-            fontStyle: '800',
-            color: '#16111f',
-          })
-          .setOrigin(0.5);
+        const icon = this.pickupIcon(pickup.kind);
         const view = this.add
-          .container(pickup.x, pickup.y - 20, [glow, box, glyph])
+          .container(pickup.x, pickup.y - 20, [icon])
           .setDepth(3);
         this.pickupViews.set(pickup.id, view);
         if (calm) continue;
@@ -942,20 +901,12 @@ export function mountArena(
             }),
         });
         this.tweens.add({
-          targets: [box, glyph],
+          targets: icon,
           scaleX: 0.55,
           duration: 1100,
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
-        });
-        this.tweens.add({
-          targets: glow,
-          scale: 1.35,
-          alpha: 0.05,
-          duration: 1000,
-          yoyo: true,
-          repeat: -1,
         });
       }
     }
@@ -1074,17 +1025,7 @@ export function mountArena(
       this.shownAim = shown;
       const aim = shown;
       const info = actions[aim.action];
-      const originY = own.y - TANK_H * 0.6;
-      if (info.aim === 'none') {
-        if (aim.action === 'shockwave') {
-          const pulse = calm ? 0 : Math.sin(time / 180) * 6;
-          this.preview.lineStyle(4, 0xffc43d, 0.8);
-          this.preview.strokeCircle(own.x, originY, 150 + pulse);
-          this.preview.fillStyle(0xffc43d, 0.08);
-          this.preview.fillCircle(own.x, originY, 150 + pulse);
-        }
-        return;
-      }
+      if (info.aim === 'none') return;
       const key = `${aim.action}|${aim.angle}|${aim.power}|${own.x}|${own.y}`;
       if (key !== this.previewKey) {
         this.previewKey = key;
@@ -1095,7 +1036,16 @@ export function mountArena(
         const solid = (x: number, y: number) =>
           this.terrain.solid(x, y) ||
           others.some((other) => insideTank(other, x, y, map.width));
-        if (info.aim === 'jump') {
+        if (info.aim === 'bubble') {
+          this.previewPoints = [
+            bubblePreview(
+              this.terrain,
+              centerOf(own),
+              launchVelocity(aim.angle, aim.power, BUBBLE_SPEED * info.speed),
+              solid,
+            ),
+          ];
+        } else if (info.aim === 'jump') {
           const velocity = launchVelocity(
             clampJumpAngle(aim.angle),
             aim.power,
@@ -1229,7 +1179,9 @@ export function mountArena(
             ? 0x7ed957
             : track.kind === 'strike'
               ? 0xff3b30
-              : 0xffc43d;
+              : track.kind === 'pulse'
+                ? 0x6cc4ff
+                : 0xffc43d;
         this.shells.lineStyle(size, core, 0.35);
         if (Math.abs(x - px) < 400) this.shells.lineBetween(px, py, x, y);
         this.shells.fillStyle(0x16111f, 1);
@@ -1251,8 +1203,16 @@ export function mountArena(
       this.shells.clear();
       for (const sprite of this.tanks.values()) {
         sprite.airborne = false;
+        this.setBubble(sprite, false);
       }
       this.applyView();
+    }
+
+    /** Swaps the hull for the Spike Bubble art (or back). */
+    private setBubble(sprite: TankSprite, active: boolean) {
+      sprite.bubble.setVisible(active);
+      sprite.body.setVisible(!active);
+      sprite.shadow.setVisible(!active);
     }
 
     private handle(event: ReplayEvent) {
@@ -1408,6 +1368,30 @@ export function mountArena(
             );
           return;
         }
+        case 'bubble': {
+          const sprite = this.tanks.get(event.id);
+          if (!sprite) return;
+          this.setBubble(sprite, event.active);
+          const center = centerOf({
+            x: sprite.root.x,
+            y: sprite.root.y,
+            angle: sprite.body.rotation,
+          });
+          this.emitters
+            .get('spark')
+            ?.explode(event.active ? 16 : 26, center.x, center.y);
+          if (!calm)
+            this.tweens.add({
+              targets: event.active ? sprite.bubble : sprite.body,
+              scale: {
+                from: (event.active ? sprite.bubble : sprite.body).scale * 0.6,
+                to: (event.active ? sprite.bubble : sprite.body).scale,
+              },
+              duration: 260,
+              ease: 'Back.easeOut',
+            });
+          return;
+        }
         case 'airstrike': {
           const flash = this.add
             .rectangle(0, 0, map.width, map.height, 0xff3b30, 0.18)
@@ -1511,27 +1495,27 @@ export function mountArena(
     }
 
     /**
-     * The arena wraps, so a tank across an edge also shows on the other side, and its
-     * name and health bar slide inward to stay readable.
+     * The arena wraps, but a tank is drawn as one object: across an edge it shows whole on
+     * the side holding most of it (its center's side) and jumps over once the center
+     * crosses, instead of being split across both edges. Near an edge the drawing can sit
+     * up to `EDGE_REACH` px inward of the physical position.
      */
-    private mirror(sprite: TankSprite) {
-      const { root, body, ghost } = sprite;
-      const reach = (SPRITE_SCALE * 384) / 2;
-      const x = root.x;
-      const copy =
-        x < reach
-          ? x + map.width
-          : x > map.width - reach
-            ? x - map.width
-            : null;
-      ghost.setVisible(root.visible && copy !== null);
-      if (copy !== null)
-        ghost
-          .setPosition(copy + body.x, root.y + body.y)
-          .setFlipX(body.flipX)
-          .setRotation(body.rotation + root.rotation)
-          .setScale(body.scaleX, body.scaleY)
-          .setAlpha(root.alpha);
+    private keepWhole(sprite: TankSprite) {
+      sprite.root.x = Math.max(
+        EDGE_REACH,
+        Math.min(map.width - EDGE_REACH, sprite.root.x),
+      );
+      if (sprite.bubble.visible) {
+        const angle = sprite.body.rotation;
+        sprite.bubble
+          .setPosition(
+            (TANK_H / 2) * Math.sin(angle),
+            (-TANK_H / 2) * Math.cos(angle),
+          )
+          .setRotation(angle);
+      }
+      // Long names still slide inward to stay readable.
+      const x = sprite.root.x;
       const shift = Math.max(70 - x, Math.min(0, map.width - 70 - x));
       sprite.bar.x = shift;
       sprite.label.x = shift;

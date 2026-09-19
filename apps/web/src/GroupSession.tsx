@@ -4,11 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Link, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { Icon } from './Icon';
 import { loadProfile } from './profile';
 import {
@@ -22,6 +23,7 @@ import {
   publishGroupLobbyInvite as publishLobbyInviteRequest,
   removeGroupMember as removeGroupMemberRequest,
   respondToGroupInvite,
+  signOut as signOutRequest,
   subscribeToGroupEvents,
   supabase,
   transferGroupLeadership as transferLeadershipRequest,
@@ -60,6 +62,7 @@ interface GroupSessionValue {
     gameName: string,
     groupId?: string,
   ) => Promise<void>;
+  disconnect: () => Promise<void>;
   dismissLobbyInvite: (invite: GroupLobbyInviteView) => void;
 }
 
@@ -234,6 +237,9 @@ export function GroupProvider({ children }: { children: ReactNode }) {
           gameName,
         );
       },
+      disconnect: async () => {
+        await signOutRequest();
+      },
       dismissLobbyInvite: (invite) => {
         if (!account) return;
         setSeenInvites(
@@ -330,23 +336,81 @@ export function GroupLobbyInviteBanner({
 
 export function GroupIndicator() {
   const { account, accountLoading, state } = useGroupSession();
-  if (accountLoading) return null;
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    addEventListener('pointerdown', outside);
+    addEventListener('keydown', escape);
+    return () => {
+      removeEventListener('pointerdown', outside);
+      removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  if (accountLoading || !state.group) return null;
+  const group = state.group;
   return (
-    <Link
-      className={`group-indicator${state.group ? ' is-active' : ''}`}
-      to="/group"
-      aria-label={state.group ? t.community.groupDetails : t.group}
-    >
-      <span className="group-indicator-icon" aria-hidden="true">
-        <Icon name="users" />
-      </span>
-      <span>
-        {state.group ? `${t.group} · ${state.group.members.length}` : t.group}
-      </span>
-      {account && state.group && (
-        <span className="group-indicator-code">{state.group.code}</span>
-      )}
-    </Link>
+    <div className="group-indicator-wrap" ref={root}>
+      <button
+        className="group-indicator is-active"
+        type="button"
+        aria-label={t.community.groupDetails}
+        aria-expanded={open}
+        aria-controls="group-details-popover"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="group-indicator-icon" aria-hidden="true">
+          <Icon name="users" />
+        </span>
+        <span>{`${t.group} · ${group.members.length}`}</span>
+        <span className="group-indicator-code">{group.code}</span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            id="group-details-popover"
+            className="group-details-popover"
+            role="dialog"
+            aria-label={t.community.groupDetails}
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+          >
+            <header>
+              <div>
+                <span className="eyebrow">{t.group}</span>
+                <strong>{group.code}</strong>
+              </div>
+              <span className="group-details-count">
+                {group.members.length} {t.community.members.toLowerCase()}
+              </span>
+            </header>
+            <ul className="group-details-members">
+              {group.members.map((member) => (
+                <li key={member.userId}>
+                  <span className="group-avatar" aria-hidden="true">
+                    {member.username.slice(0, 1).toUpperCase()}
+                  </span>
+                  <strong>{member.username}</strong>
+                  {member.isLeader && <Icon name="crown" />}
+                  {member.userId === account?.userId && (
+                    <small>{t.community.you}</small>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

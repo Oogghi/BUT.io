@@ -1,19 +1,28 @@
+export type IconName =
+  | 'arrow'
+  | 'play'
+  | 'users'
+  | 'check'
+  | 'crown'
+  | 'back'
+  | 'trophy'
+  | 'settings'
+  | 'locker'
+  | 'coin'
+  | 'stats'
+  | 'copy'
+  | 'eye'
+  | 'snowflake'
+  | 'leaf'
+  | 'slide'
+  | 'blast'
+  | 'shuffle';
+
 export function Icon({
   name,
   className = '',
 }: {
-  name:
-    | 'arrow'
-    | 'play'
-    | 'users'
-    | 'check'
-    | 'crown'
-    | 'back'
-    | 'trophy'
-    | 'settings'
-    | 'stats'
-    | 'copy'
-    | 'eye';
+  name: IconName;
   className?: string;
 }) {
   return (
@@ -63,11 +72,55 @@ export function Icon({
           <circle cx="12" cy="12" r="3" />
         </>
       )}
+      {name === 'locker' && (
+        <>
+          <rect x="5" y="4" width="14" height="17" rx="2" />
+          <path d="M12 4v17M9 9h1m4 0h1M9 14h1m4 0h1" />
+        </>
+      )}
+      {name === 'coin' && (
+        <image
+          href="/coin-reward.png"
+          x="1"
+          y="1"
+          width="22"
+          height="22"
+          preserveAspectRatio="xMidYMid meet"
+        />
+      )}
       {name === 'crown' && <path d="m3 7 5 4 4-7 4 7 5-4-2 12H5Z" />}
       {name === 'users' && (
         <>
           <circle cx="9" cy="8" r="3" />
           <path d="M3 20v-2a6 6 0 0 1 12 0v2m1-15a3 3 0 0 1 0 6m3 9v-2a6 6 0 0 0-2-4" />
+        </>
+      )}
+      {name === 'snowflake' && (
+        <>
+          <path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9" />
+          <path d="m12 3-2 2m2-2 2 2m0 14-2 2m2-2 2-2M4.2 7.5l2.8.2m-2.8-.2 1.2 2.5m14.4 6.5-2.8-.2m2.8.2-1.2-2.5M4.2 16.5l2.8-.2m-2.8.2 1.2-2.5m14.4-6.5-2.8.2m2.8-.2-1.2 2.5" />
+        </>
+      )}
+      {name === 'leaf' && (
+        <>
+          <path d="M20 4C10 4 5 8 5 14c0 3.3 2.4 6 6 6 6 0 9-7 9-16Z" />
+          <path d="M4 20c3-4 6-7 12-10" />
+        </>
+      )}
+      {name === 'slide' && (
+        <>
+          <path d="M4 18h16M5 13h8l3-5" />
+          <path d="m7 9 3 4m-5 1 3 4m8-10 3 3" />
+        </>
+      )}
+      {name === 'blast' && (
+        <>
+          <path d="m13 2-2 8H5l6 4-2 8 6-6 5 2-3-6 3-4h-6Z" />
+        </>
+      )}
+      {name === 'shuffle' && (
+        <>
+          <path d="M4 7h2c4 0 5 10 10 10h4m0 0-3-3m3 3-3 3M4 17h2c1.5 0 2.5-1 3.4-2.4M14.6 9.4C15.5 8 16.5 7 18 7h2m0 0-3-3m3 3-3 3" />
         </>
       )}
     </svg>

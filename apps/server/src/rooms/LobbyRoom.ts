@@ -1,14 +1,16 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { Room, type Client } from '@colyseus/core';
 import { schema, t } from '@colyseus/schema';
 import {
   DISPLAY_NAME_MAX_LENGTH,
   isAvatar,
   type GameMetadata,
+  type AnyMatchResult,
   type JoinOptions,
   type LobbyErrorCode,
   type LobbyPhase,
 } from '@but/shared';
+import { recordAuthoritativeMatch, verifiedUserId } from '../rewards.js';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const START_DELAY_MS = 1000;
@@ -73,6 +75,10 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   metadata: GameMetadata;
 }> {
   private startTimer: { clear(): void } | undefined;
+  private readonly accountIds = new Map<string, string>();
+  private activeMatchId = '';
+  private matchStartedAt = 0;
+  private matchRecorded = false;
 
   protected abstract readonly game: GameMetadata;
   /** Builds the initial state, starting from `lobbyFields(code)`. */
@@ -85,6 +91,16 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   protected abstract endMatch(): void;
   /** A player left mid-match. */
   protected abstract leaveMatch(id: string): void;
+  /** Builds the server-authoritative result while the finished match is still available. */
+  protected abstract buildMatchResult(
+    matchId: string,
+    playedAt: string,
+    endedAt: string,
+  ): AnyMatchResult | null;
+  /** Optional game-specific lobby validation before the shared start sequence. */
+  protected validateStart(): LobbyErrorCode | null {
+    return null;
+  }
 
   public onCreate() {
     const code = reserveCode();
@@ -118,11 +134,15 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     };
   }
 
-  public onAuth(_client: unknown, options: unknown) {
+  public async onAuth(client: Client, options: unknown) {
     if (this.state.phase !== 'lobby')
       throw new Error('lobby-closed' satisfies LobbyErrorCode);
     if (!validDisplayName((options as JoinOptions | undefined)?.displayName))
       throw new Error('invalid-name' satisfies LobbyErrorCode);
+    const accountId = await verifiedUserId(
+      (options as JoinOptions | undefined)?.authToken,
+    );
+    if (accountId) this.accountIds.set(client.sessionId, accountId);
     return true;
   }
 
@@ -150,10 +170,12 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
 
   public onDrop(client: Client) {
     this.removePlayer(client.sessionId);
+    this.accountIds.delete(client.sessionId);
   }
 
   public onLeave(client: Client) {
     this.removePlayer(client.sessionId);
+    this.accountIds.delete(client.sessionId);
   }
 
   public onDispose() {
@@ -175,6 +197,17 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   protected showResults(reason: string) {
     this.state.phase = 'results';
     this.state.resultReason = reason;
+    void this.persistMatchResult();
+  }
+
+  /** Maps a Colyseus seat to a verified Supabase account, or null for guests. */
+  protected accountId(sessionId: string): string | null {
+    return this.accountIds.get(sessionId) ?? null;
+  }
+
+  /** Stable server match id for idempotent match-scoped operations such as rebuys. */
+  protected matchId() {
+    return this.activeMatchId;
   }
 
   protected resetReady() {
@@ -234,6 +267,11 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
       this.sendError(client, 'players-not-ready');
       return;
     }
+    const setupError = this.validateStart();
+    if (setupError) {
+      this.sendError(client, setupError);
+      return;
+    }
 
     this.state.phase = 'starting';
     void this.lock();
@@ -241,6 +279,9 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
       this.startTimer = undefined;
       if (this.state.phase === 'starting') {
         this.state.phase = 'playing';
+        this.activeMatchId = randomUUID();
+        this.matchStartedAt = Date.now();
+        this.matchRecorded = false;
         // Spectators get no seat; they watch the synced state.
         this.startMatch(this.participants().map(([id]) => id));
       }
@@ -263,8 +304,31 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.state.phase = 'lobby';
     this.state.resultReason = '';
     this.endMatch();
+    this.activeMatchId = '';
+    this.matchStartedAt = 0;
+    this.matchRecorded = false;
     this.resetReady();
     void this.unlock();
+  }
+
+  private async persistMatchResult() {
+    if (this.matchRecorded || !this.activeMatchId || !this.matchStartedAt)
+      return;
+    this.matchRecorded = true;
+    const playedAt = new Date(this.matchStartedAt).toISOString();
+    const endedAt = new Date().toISOString();
+    const result = this.buildMatchResult(this.activeMatchId, playedAt, endedAt);
+    if (!result) return;
+    const rewards = await recordAuthoritativeMatch(result);
+    for (const client of this.clients) {
+      const reward = rewards.get(this.accountId(client.sessionId) ?? '');
+      if (reward?.total) {
+        client.send('coins-earned', {
+          amount: reward.total,
+          breakdown: reward.breakdown,
+        });
+      }
+    }
   }
 
   private removePlayer(sessionId: string) {

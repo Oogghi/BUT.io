@@ -5,6 +5,7 @@ import {
   winRate,
   type GlobalStats,
 } from '@but/shared';
+import { isCosmeticId, type CosmeticId } from './cosmetics.ts';
 
 const url = import.meta.env?.VITE_SUPABASE_URL;
 const publishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -21,7 +22,7 @@ export const supabase =
       })
     : null;
 
-export type GameId = 'bomb-party' | 'tank-arena';
+export type GameId = 'bomb-party' | 'tank-arena' | 'blackjack-party';
 export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
 export type LeaderboardMetric = 'wins' | 'winRate' | 'bestStreak' | 'kills';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
@@ -47,6 +48,10 @@ type DataLayerErrorCode =
   | 'invite-not-found'
   | 'invalid-game'
   | 'invalid-lobby'
+  | 'cosmetic-not-found'
+  | 'cosmetic-owned'
+  | 'cosmetic-not-owned'
+  | 'not-enough-coins'
   | 'request-failed';
 
 export class DataLayerError extends Error {
@@ -70,6 +75,23 @@ export interface Account {
   email: string;
   username: string;
   isAnonymous: boolean;
+}
+
+export interface RewardState {
+  coins: number;
+  ownedCosmetics: CosmeticId[];
+  equippedCosmetic: CosmeticId | null;
+}
+
+interface WalletRow {
+  user_id: string;
+  coins: number | null;
+  equipped_cosmetic: string | null;
+}
+
+interface CosmeticRow {
+  user_id: string;
+  cosmetic_id: string;
 }
 
 interface GameStatsRow {
@@ -293,7 +315,11 @@ function metrics(value: unknown): Record<string, number> {
 }
 
 function gameId(value: string): GameId | null {
-  return value === 'bomb-party' || value === 'tank-arena' ? value : null;
+  return value === 'bomb-party' ||
+    value === 'tank-arena' ||
+    value === 'blackjack-party'
+    ? value
+    : null;
 }
 
 function normalizeGroup(row: GroupRow, members: GroupMember[]): GroupView {
@@ -404,6 +430,13 @@ async function profileById(userId: string): Promise<ProfileRecord | null> {
     .maybeSingle();
   fail(error);
   return (data as ProfileRecord | null) ?? null;
+}
+
+/** Returns the short-lived browser session token for trusted server joins. */
+export async function getAccessToken(): Promise<string | null> {
+  const { data, error } = await client().auth.getSession();
+  fail(error);
+  return data.session?.access_token ?? null;
 }
 
 async function saveProfile(
@@ -523,6 +556,96 @@ export async function signOut() {
   fail(error);
 }
 
+function rewardFailure(error: { message: string } | null): never | void {
+  if (!error) return;
+  const code = error.message as DataLayerErrorCode;
+  const rewardCodes = new Set<DataLayerErrorCode>([
+    'not-authenticated',
+    'cosmetic-not-found',
+    'cosmetic-owned',
+    'cosmetic-not-owned',
+    'not-enough-coins',
+  ]);
+  throw new DataLayerError(
+    rewardCodes.has(code) ? code : 'request-failed',
+    error.message,
+  );
+}
+
+function normalizeRewardState(
+  wallet: WalletRow | null,
+  owned: CosmeticRow[],
+): RewardState {
+  return {
+    coins: Math.max(0, number(wallet?.coins)),
+    ownedCosmetics: owned.map((row) => row.cosmetic_id).filter(isCosmeticId),
+    equippedCosmetic: isCosmeticId(wallet?.equipped_cosmetic)
+      ? wallet.equipped_cosmetic
+      : null,
+  };
+}
+
+export async function loadRewardState(userId: string): Promise<RewardState> {
+  const db = client();
+  const [walletResult, ownedResult] = await Promise.all([
+    db
+      .from('player_wallets')
+      .select('user_id,coins,equipped_cosmetic')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    db
+      .from('player_cosmetics')
+      .select('user_id,cosmetic_id')
+      .eq('user_id', userId),
+  ]);
+  fail(walletResult.error);
+  fail(ownedResult.error);
+  return normalizeRewardState(
+    (walletResult.data as WalletRow | null) ?? null,
+    (ownedResult.data as CosmeticRow[] | null) ?? [],
+  );
+}
+
+function normalizeRewardRpc(
+  value: unknown,
+): Pick<RewardState, 'coins' | 'equippedCosmetic'> {
+  const row =
+    value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    coins: Math.max(0, number(row.coins)),
+    equippedCosmetic: isCosmeticId(row.equipped_cosmetic)
+      ? row.equipped_cosmetic
+      : null,
+  };
+}
+
+export async function purchaseCosmetic(
+  cosmeticId: CosmeticId,
+): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
+  if (!isCosmeticId(cosmeticId))
+    throw new DataLayerError(
+      'cosmetic-not-found',
+      'That cosmetic is unavailable.',
+    );
+  const { data, error } = await client().rpc('purchase_cosmetic', {
+    p_cosmetic_id: cosmeticId,
+  });
+  rewardFailure(error);
+  return normalizeRewardRpc(data);
+}
+
+export async function setEquippedCosmetic(
+  cosmeticId: CosmeticId | null,
+): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
+  const { data, error } = await client().rpc('set_equipped_cosmetic', {
+    p_cosmetic_id: cosmeticId,
+  });
+  rewardFailure(error);
+  return normalizeRewardRpc(data);
+}
+
 export async function loadPlayerStats(
   userId: string,
 ): Promise<PlayerStatsView> {
@@ -546,12 +669,17 @@ export async function loadPlayerStats(
   const games: Record<GameId, GameStatsView> = {
     'bomb-party': emptyGameStats('bomb-party'),
     'tank-arena': emptyGameStats('tank-arena'),
+    'blackjack-party': emptyGameStats('blackjack-party'),
   };
   for (const row of (statsResult.data ?? []) as GameStatsRow[]) {
     const game = normalizeGameStats(row);
     if (game) games[game.gameId] = game;
   }
-  const global = combineGlobalStats(games['bomb-party'], games['tank-arena']);
+  const global = combineGlobalStats(
+    games['bomb-party'],
+    games['tank-arena'],
+    games['blackjack-party'],
+  );
   const recentMatches =
     (historyResult.data as MatchHistoryRow[] | null)
       ?.map((row) => normalizeMatch(row, userId))

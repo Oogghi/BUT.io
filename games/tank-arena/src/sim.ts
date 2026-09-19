@@ -30,11 +30,17 @@ import {
   wrapDelta,
   type Solid,
   type Terrain,
+  BUBBLE_RADIUS,
+  BUBBLE_SPEED,
+  DT,
+  placeCenter,
+  stepBubble,
 } from './physics.js';
 
 /** Authoritative tank state, mutated in place by the simulation. */
 export interface Tank {
   id: string;
+  team: string;
   tank: TankId;
   x: number;
   y: number;
@@ -48,6 +54,9 @@ export interface Tank {
   grounded: boolean;
   /** Consecutive calm ticks in contact; the tank rests after `SETTLE_TICKS`. */
   calm: number;
+  /** Ticks left as a Spike Bubble (0 = a normal tank), and bounces so far. */
+  bubbleTicks: number;
+  bubbleBounces: number;
   facing: number;
   health: number;
   maxHealth: number;
@@ -58,6 +67,11 @@ export interface Tank {
   boost: '' | 'damage' | 'poison' | 'freeze';
   poisonTurns: number;
   frozenTurns: number;
+  shotsFired?: number;
+  shotsHit?: number;
+  damageDealt?: number;
+  kills?: number;
+  deaths?: number;
 }
 
 export interface Intent {
@@ -93,6 +107,11 @@ const KNOCKBACK = 650;
 /** Share of a blast's off-center push that becomes spin. */
 const BLAST_SPIN = 0.35;
 const SETTLE_TICKS = 8;
+/** Spike Bubble: lifetime, bounce limit, damage per tank touched and its shove. */
+const BUBBLE_TICKS = TICK_RATE * 2.5;
+const BUBBLE_MAX_BOUNCES = 8;
+const SPIKE_DAMAGE = 10;
+const SPIKE_KNOCKBACK = 380;
 /** A tank resting past this tilt (on its side or roof) hops back upright. */
 const RIGHTING_ANGLE = 1.1;
 const POISON_DAMAGE = 8;
@@ -173,36 +192,21 @@ const behaviors: Record<ActionId, Behavior> = {
       1,
     );
   },
-  shockwave: (sim, tank) =>
-    sim.explode(
-      centerOf(tank).x,
-      centerOf(tank).y,
-      sim.boosted(tank, {
-        kind: 'shell',
-        damage: tanks[tank.tank].damage * 0.5,
-        radius: 150,
-        knockback: 2,
-        crater: 0,
-      }),
-      tank.id,
-      true,
-    ),
-  'rocket-jump': (sim, tank, intent) => {
-    sim.explode(
-      tank.x,
-      tank.y,
+  // Pulse Bomb: little damage, a wide blast and heavy knockback, no crater.
+  shockwave: (sim, tank, intent) =>
+    sim.fire(
+      tank,
+      intent,
       {
-        kind: 'shell',
+        kind: 'pulse',
         damage: tanks[tank.tank].damage * 0.35,
-        radius: 90,
-        knockback: 1.3,
+        radius: 150,
+        knockback: 2.2,
         crater: 0,
       },
-      tank.id,
-      true,
-    );
-    sim.leap(tank, intent, actions['rocket-jump'].speed);
-  },
+      actions.shockwave.speed,
+    ),
+  'spike-bubble': (sim, tank, intent) => sim.bubble(tank, intent),
 };
 
 /**
@@ -217,6 +221,8 @@ export class Simulation {
   private shells: Shell[] = [];
   private pending: { at: number; shell: Shell }[] = [];
   private tankTracks = new Map<string, ReplayTrack>();
+  /** Per Spike Bubble: tanks it is touching now (spikes hit once per touch). */
+  private bubbleContacts = new Map<string, Set<string>>();
 
   constructor(
     private readonly terrain: Terrain,
@@ -264,7 +270,29 @@ export class Simulation {
     this.unground(tank);
   }
 
+  /** Launches the tank itself as a Spike Bubble along the aim. */
+  bubble(tank: Tank, intent: Intent) {
+    const velocity = launchVelocity(
+      intent.angle,
+      intent.power,
+      BUBBLE_SPEED * actions['spike-bubble'].speed,
+    );
+    tank.vx = velocity.vx;
+    tank.vy = velocity.vy;
+    tank.av = 0;
+    tank.bubbleTicks = BUBBLE_TICKS;
+    tank.bubbleBounces = 0;
+    this.unground(tank);
+    this.events.push({
+      t: this.tick,
+      type: 'bubble',
+      id: tank.id,
+      active: true,
+    });
+  }
+
   fire(tank: Tank, intent: Intent, spec: ShellSpec, speed: number) {
+    tank.shotsFired = (tank.shotsFired ?? 0) + 1;
     const spread = (1 - tanks[tank.tank].accuracy) * 6;
     const angle = intent.angle + (this.random() * 2 - 1) * spread;
     const from = muzzle(tank, angle);
@@ -289,32 +317,34 @@ export class Simulation {
     spareOwner = false,
   ) {
     const t = this.tick;
+    const crater = Math.round(spec.crater * this.terrain.map.craterMultiplier);
     this.events.push({
       t,
       type: 'explode',
       x: Math.round(x),
       y: Math.round(y),
       r: Math.round(spec.radius),
-      crater: Math.round(spec.crater),
+      crater,
     });
-    if (spec.crater > 0) {
+    if (crater > 0) {
       const crater: [number, number, number] = [
         Math.round(x),
         Math.round(y),
-        Math.round(spec.crater),
+        Math.round(spec.crater * this.terrain.map.craterMultiplier),
       ];
       this.terrain.carve(...crater);
       this.craters.push(crater);
     }
     for (const tank of this.tanks) {
       if (!tank.alive || (spareOwner && tank.id === owner)) continue;
+      if (this.isTeammate(owner, tank.id)) continue;
       // Distance to the nearest point of the tank's box, so big tanks are easy to hit.
       const width = this.terrain.map.width;
       const near = nearestOnTank(tank, x, y, width);
       const distance = near.distance;
       if (distance > spec.radius) continue;
       const falloff = 1 - (0.5 * distance) / spec.radius;
-      this.damage(tank, Math.round(spec.damage * falloff));
+      this.damage(tank, Math.round(spec.damage * falloff), 'health', owner);
       if (!tank.alive) continue;
       if (spec.effect === 'poison') {
         tank.poisonTurns = 3;
@@ -466,6 +496,7 @@ export class Simulation {
           (tank) =>
             tank.alive &&
             (tank.id !== shell.owner || shell.age > ARMING_TICKS) &&
+            !this.isTeammate(shell.owner, tank.id) &&
             insideTank(tank, x, y, width),
         );
       const { waterY: water, width } = this.terrain.map;
@@ -473,6 +504,7 @@ export class Simulation {
         shell,
         (x, y) => this.terrain.solid(x, y) || y > water || hitTank(x, y),
         width,
+        this.terrain.map.gravity,
       );
       record(shell.track, shell.x, shell.y, t);
       if (!hit) continue;
@@ -486,10 +518,21 @@ export class Simulation {
     for (const tank of this.tanks) {
       if (!tank.alive) continue;
       const solid = this.solidFor(tank);
+      if (tank.bubbleTicks > 0) {
+        this.roll(tank, solid, t);
+        if (tank.alive) this.collect(tank);
+        continue;
+      }
       // Resting tanks wake when what holds them changes (craters, a tank moving away).
       if (tank.grounded && !stable(solid, tank)) this.unground(tank);
       if (!tank.grounded) {
-        const touched = stepTank(solid, this.terrain.map.width, tank);
+        const touched = stepTank(
+          solid,
+          this.terrain.map.width,
+          tank,
+          this.terrain.map.friction,
+          this.terrain.map.gravity,
+        );
         const track = this.tankTracks.get(tank.id);
         if (track) record(track, tank.x, tank.y, t, tank.angle);
         if (centerOf(tank).y > this.terrain.map.waterY) {
@@ -507,6 +550,91 @@ export class Simulation {
       }
       this.collect(tank);
     }
+  }
+
+  /**
+   * One tick of a Spike Bubble: it bounces off terrain and tanks (`solid`), rolls as it
+   * goes, and spikes each tank it newly touches. It pops after `BUBBLE_TICKS`,
+   * `BUBBLE_MAX_BOUNCES`, or once it has nearly stopped.
+   */
+  private roll(tank: Tank, solid: Solid, t: number) {
+    const width = this.terrain.map.width;
+    const center = centerOf(tank);
+    const body = { x: center.x, y: center.y, vx: tank.vx, vy: tank.vy };
+    const bounced = stepBubble(solid, width, body, this.terrain.map.gravity);
+    tank.vx = body.vx;
+    tank.vy = body.vy;
+    tank.angle = Math.atan2(
+      Math.sin(tank.angle + (body.vx * DT) / BUBBLE_RADIUS),
+      Math.cos(tank.angle + (body.vx * DT) / BUBBLE_RADIUS),
+    );
+    placeCenter(tank, body.x, body.y, width);
+    const track = this.tankTracks.get(tank.id);
+    if (track) record(track, tank.x, tank.y, t, tank.angle);
+    if (bounced) tank.bubbleBounces += 1;
+
+    const touching = this.bubbleContacts.get(tank.id) ?? new Set<string>();
+    this.bubbleContacts.set(tank.id, touching);
+    for (const other of this.tanks) {
+      if (other === tank || !other.alive || this.isTeammate(tank.id, other.id))
+        continue;
+      const near = nearestOnTank(other, body.x, body.y, width);
+      if (near.distance > BUBBLE_RADIUS + 2) {
+        touching.delete(other.id);
+        continue;
+      }
+      if (touching.has(other.id)) continue;
+      // A new touch: spike damage and a shove away from the bubble.
+      touching.add(other.id);
+      this.damage(other, SPIKE_DAMAGE, 'health', tank.id);
+      if (!other.alive) continue;
+      const target = centerOf(other);
+      let ux = wrapDelta(target.x - body.x, width);
+      let uy = target.y - body.y;
+      const length = Math.hypot(ux, uy) || 1;
+      ux /= length;
+      uy = Math.min(uy / length, -0.4);
+      const speed = (SPIKE_KNOCKBACK * 55) / (tanks[other.tank].weight + 25);
+      other.vx += ux * speed;
+      other.vy = Math.min(other.vy, 0) + uy * speed;
+      this.unground(other);
+    }
+
+    if (body.y > this.terrain.map.waterY) {
+      this.events.push({ t, type: 'splash', x: Math.round(body.x) });
+      tank.bubbleTicks = 0;
+      this.eliminate(tank, 'water');
+      return;
+    }
+    tank.bubbleTicks -= 1;
+    const stopped = bounced && Math.hypot(tank.vx, tank.vy) < 90;
+    if (
+      tank.bubbleTicks <= 0 ||
+      tank.bubbleBounces >= BUBBLE_MAX_BOUNCES ||
+      stopped
+    )
+      this.pop(tank);
+  }
+
+  /** The bubble bursts: the tank drops back as a normal, upright rigid body. */
+  private pop(tank: Tank) {
+    const width = this.terrain.map.width;
+    const center = centerOf(tank);
+    tank.bubbleTicks = 0;
+    tank.bubbleBounces = 0;
+    this.bubbleContacts.delete(tank.id);
+    tank.angle = 0;
+    tank.av = 0;
+    placeCenter(tank, center.x, center.y, width);
+    tank.vx *= 0.4;
+    tank.vy = Math.min(tank.vy, 0) * 0.4;
+    tank.calm = 0;
+    this.events.push({
+      t: this.tick,
+      type: 'bubble',
+      id: tank.id,
+      active: false,
+    });
   }
 
   private collect(tank: Tank) {
@@ -538,8 +666,16 @@ export class Simulation {
     tank: Tank,
     amount: number,
     cause: EliminationCause = 'health',
+    owner = '',
   ) {
     if (amount <= 0) return;
+    if (owner && owner !== tank.id) {
+      const attacker = this.tanks.find((candidate) => candidate.id === owner);
+      if (attacker) {
+        attacker.shotsHit = (attacker.shotsHit ?? 0) + 1;
+        attacker.damageDealt = (attacker.damageDealt ?? 0) + amount;
+      }
+    }
     const absorbed = Math.min(tank.shield, amount);
     tank.shield -= absorbed;
     tank.health = Math.max(0, tank.health - (amount - absorbed));
@@ -551,11 +687,24 @@ export class Simulation {
       health: tank.health,
       shield: tank.shield,
     });
-    if (tank.health === 0) this.eliminate(tank, cause);
+    if (tank.health === 0) this.eliminate(tank, cause, owner);
   }
 
-  private eliminate(tank: Tank, cause: EliminationCause) {
+  private isTeammate(ownerId: string, targetId: string) {
+    if (!ownerId || ownerId === targetId) return false;
+    const owner = this.tanks.find((candidate) => candidate.id === ownerId);
+    const target = this.tanks.find((candidate) => candidate.id === targetId);
+    return Boolean(owner && target && owner.team === target.team);
+  }
+
+  private eliminate(tank: Tank, cause: EliminationCause, owner = '') {
+    if (!tank.alive) return;
     tank.alive = false;
+    tank.deaths = (tank.deaths ?? 0) + 1;
+    if (owner && owner !== tank.id) {
+      const attacker = this.tanks.find((candidate) => candidate.id === owner);
+      if (attacker) attacker.kills = (attacker.kills ?? 0) + 1;
+    }
     this.endTrack(tank);
     this.events.push({ t: this.tick, type: 'eliminated', id: tank.id, cause });
   }

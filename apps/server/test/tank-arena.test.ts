@@ -20,6 +20,14 @@ test(
       host.state.loadouts.get(guest.sessionId),
     );
 
+    guest.send('map-vote', 'ice');
+    await waitFor(
+      host,
+      (state) => state.mapVotes.get(guest.sessionId) === 'ice',
+    );
+    guest.send('map-vote', 'moon');
+    assert.equal(await nextError(guest), 'invalid-payload');
+
     guest.send('tank', 'neon');
     await waitFor(
       host,
@@ -36,6 +44,7 @@ test(
     host.send('start');
     for (const room of [host, guest])
       await waitFor(room, (state) => state.game.stage === 'planning');
+    assert.equal(host.state.game.map, 'ice');
     assert.equal(host.state.game.players.get(guest.sessionId)?.tank, 'neon');
 
     // A tank may only use its own actions.
@@ -96,5 +105,42 @@ test(
     await waitFor(host, (state) => state.phase === 'lobby');
     assert.equal(host.state.game.stage, '');
     assert.equal(host.state.game.players.size, 0);
+  },
+);
+
+test(
+  'tank lobbies support flexible team counts and carry assignments into the match',
+  { concurrency: false },
+  async () => {
+    const host = await create('Host');
+    const guests = await Promise.all(
+      ['A', 'B', 'C', 'D'].map((name) => join(host.roomId, name)),
+    );
+    const clients = [host, ...guests];
+    await waitFor(host, (state) => state.teams.size === 5);
+
+    host.send('team-mode', 'teams');
+    await waitFor(host, (state) => state.teamMode === 'teams');
+    host.send('team-count', 3);
+    await waitFor(host, (state) => state.teamCount === 3);
+
+    assert.deepEqual([...host.state.teams.values()].sort(), [
+      'team-1',
+      'team-1',
+      'team-2',
+      'team-2',
+      'team-3',
+    ]);
+    clients.forEach((client) => client.send('ready', true));
+    await waitFor(host, (state) =>
+      [...state.players.values()].every((player) => player.ready),
+    );
+    host.send('start');
+    await waitFor(host, (state) => state.game.stage === 'planning');
+
+    assert.deepEqual(
+      [...host.state.game.players.values()].map((player) => player.team).sort(),
+      ['team-1', 'team-1', 'team-2', 'team-2', 'team-3'],
+    );
   },
 );

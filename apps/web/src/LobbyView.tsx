@@ -7,6 +7,8 @@ import { BombPartyPlay } from './BombPartyPlay';
 import { BombPartySettings } from './BombPartySettings';
 import { TankArenaPlay } from './TankArenaPlay';
 import { TankLoadout } from './TankLoadout';
+import { TankTeamPicker } from './TankTeamPicker';
+import { MapVote } from './MapVote';
 import { gameCards } from './gameCards';
 import { PlayerAvatar } from './Avatar';
 import { StatsPopover, useStatsTarget } from './StatsPopover';
@@ -49,6 +51,11 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
   const winner = state.players.find(
     (player) => player.id === state.game.winnerId,
   );
+  const tankWinnerTeam =
+    state.gameId === tankArena.id ? state.game.winnerTeam : '';
+  const tankWinnerIndex = tankWinnerTeam.startsWith('team-')
+    ? Number(tankWinnerTeam.slice(5)) - 1
+    : -1;
 
   useEffect(() => {
     if (copy === 'idle') return;
@@ -196,6 +203,23 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                           {player.ready ? t.ready : t.notReady}
                         </motion.span>
                       )}
+                      {state.gameId === tankArena.id &&
+                        state.phase === 'lobby' &&
+                        state.teamMode !== 'free-for-all' && (
+                          <span
+                            className="player-team-dot"
+                            title={
+                              t.ta.teamNames[
+                                Number(
+                                  (state.teams.get(player.id) ?? '').replace(
+                                    'team-',
+                                    '',
+                                  ),
+                                ) - 1
+                              ]
+                            }
+                          />
+                        )}
                     </button>
                   </motion.li>
                 ))}
@@ -217,6 +241,17 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
               <div className="players-footnote">
                 {t.readyCount(readyCount, participants.length)}
               </div>
+            )}
+            {state.phase === 'lobby' && state.gameId === tankArena.id && (
+              <TankTeamPicker
+                mode={state.teamMode}
+                teamCount={state.teamCount}
+                teams={state.teams}
+                players={state.players}
+                sessionId={sessionId}
+                host={host}
+                send={send}
+              />
             )}
           </div>
         )}
@@ -270,21 +305,13 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 ) : (
                   <p className="waiting-note">{t.hostStarts}</p>
                 )}
-                {state.gameId === bombParty.id ? (
+                {state.gameId === bombParty.id && (
                   <BombPartySettings
                     settings={state.settings}
                     host={host}
                     players={state.players.length}
                     send={send}
                   />
-                ) : (
-                  self &&
-                  !self.spectator && (
-                    <TankLoadout
-                      selected={state.loadouts.get(sessionId)}
-                      send={send}
-                    />
-                  )
                 )}
               </>
             )}
@@ -314,29 +341,56 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
               />
             )}
             {state.phase === 'results' && (
-              <div className="results-content">
-                <span className="phase-symbol">
-                  <Icon name="check" />
-                </span>
-                <h3>{winner ? t.winner(winner.displayName) : t.noWinner}</h3>
-                {state.resultReason === 'departure' && (
-                  <p>{t.winnerDeparture}</p>
-                )}
-                {host ? (
-                  <button
-                    className="button primary"
-                    type="button"
-                    onClick={() => send('return')}
-                  >
-                    {t.returnToLobby} <Icon name="arrow" />
-                  </button>
-                ) : (
-                  <p className="waiting-note">{t.waitingHost}</p>
-                )}
-              </div>
-            )}
+                <div className="results-content">
+                  <span className="phase-symbol">
+                    <Icon name="check" />
+                  </span>
+                  <h3>
+                    {tankWinnerTeam && tankWinnerIndex >= 0
+                      ? t.ta.teamWinner(t.ta.teamNames[tankWinnerIndex]!)
+                      : winner
+                        ? t.winner(winner.displayName)
+                        : t.noWinner}
+                  </h3>
+                  {state.resultReason === 'departure' && (
+                    <p>{t.winnerDeparture}</p>
+                  )}
+                  {host ? (
+                    <button
+                      className="button primary"
+                      type="button"
+                      onClick={() => send('return')}
+                    >
+                      {t.returnToLobby} <Icon name="arrow" />
+                    </button>
+                  ) : (
+                    <p className="waiting-note">{t.waitingHost}</p>
+                  )}
+                </div>
+              )}
           </motion.div>
         </div>
+
+        {/* Tank Arena gets a full-width hangar: tank showcase and map board. */}
+        {state.phase === 'lobby' &&
+          state.gameId === tankArena.id &&
+          self &&
+          !self.spectator && (
+            <div className="loadout-panel panel">
+              <TankLoadout
+                selected={state.loadouts.get(sessionId)}
+                players={state.players}
+                loadouts={state.loadouts}
+                send={send}
+              />
+              <MapVote
+                selected={state.mapVotes.get(sessionId)}
+                votes={state.mapVotes}
+                players={state.players}
+                send={send}
+              />
+            </div>
+          )}
       </div>
       <StatsPopover
         player={

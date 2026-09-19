@@ -151,6 +151,12 @@ export class BombPartyGame {
         lives: settings.startingLives,
         bonusLetters: '',
         lastWord: '',
+        wordsPlayed: 0,
+        wordsAccepted: 0,
+        livesLost: 0,
+        bestStreak: 0,
+        currentStreak: 0,
+        livesRecovered: 0,
       });
     this.activePlayerId = ids[0]!;
     this.newPrompt();
@@ -189,6 +195,13 @@ export class BombPartyGame {
         (this.usedPromptCounts.get(fragment) ?? 0) + 1,
       );
     const player = this.players.get(id)!;
+    player.wordsPlayed = (player.wordsPlayed ?? 0) + 1;
+    player.wordsAccepted = (player.wordsAccepted ?? 0) + 1;
+    player.currentStreak = (player.currentStreak ?? 0) + 1;
+    player.bestStreak = Math.max(
+      player.bestStreak ?? 0,
+      player.currentStreak,
+    );
     player.lastWord = normalized;
     const covered = new Set(player.bonusLetters + normalized);
     player.bonusLetters = [...this.settings.bonusAlphabet]
@@ -198,7 +211,10 @@ export class BombPartyGame {
       this.settings.bonusAlphabet &&
       player.bonusLetters === this.settings.bonusAlphabet
     ) {
+      const previousLives = player.lives;
       player.lives = Math.min(this.settings.maxLives, player.lives + 1);
+      if (player.lives > previousLives)
+        player.livesRecovered = (player.livesRecovered ?? 0) + 1;
       player.bonusLetters = '';
     }
     this.lastWord = normalized;
@@ -211,7 +227,10 @@ export class BombPartyGame {
 
   expire(now: number): boolean {
     if (this.ended || now < this.deadline) return false;
-    this.players.get(this.activePlayerId)!.lives -= 1;
+    const player = this.players.get(this.activePlayerId)!;
+    player.lives -= 1;
+    player.livesLost = (player.livesLost ?? 0) + 1;
+    player.currentStreak = 0;
     this.lastPlayerId = this.activePlayerId;
     this.lastEvent = 'exploded';
     this.promptAge += 1;
@@ -226,7 +245,10 @@ export class BombPartyGame {
     // Resolve a due bomb before assigning a departure to the next turn.
     this.expire(now);
     if (this.ended) return;
-    this.players.get(id)!.lives = 0;
+    const player = this.players.get(id)!;
+    player.lives = 0;
+    player.livesLost = (player.livesLost ?? 0) + 1;
+    player.currentStreak = 0;
     this.lastPlayerId = id;
     this.lastEvent = 'departure';
     if (this.finishIfNeeded('departure')) return;

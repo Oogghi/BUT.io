@@ -10,6 +10,8 @@ import { loadProfile, saveProfile, type Profile } from './profile';
 import { t } from './i18n';
 import { GameCard } from './GameCard';
 import { gameCards } from './gameCards';
+import { useGroupSession } from './GroupSession';
+import type { AuthMode, CommunitySection } from './CommunityView';
 import type { Destination } from './App';
 
 /** Games with a server room; the other cards are placeholders. */
@@ -20,10 +22,24 @@ interface Props {
   pending: boolean;
   error: string;
   connect: (profile: Profile, destination: Destination) => Promise<void>;
+  onOpenCommunity?: (section: CommunitySection, authMode?: AuthMode) => void;
+  onOpenSettings?: () => void;
+  onOpenLocker?: () => void;
+  settingsOpen?: boolean;
 }
 
-export function EntryForm({ code, pending, error, connect }: Props) {
+export function EntryForm({
+  code,
+  pending,
+  error,
+  connect,
+  onOpenCommunity,
+  onOpenSettings,
+  onOpenLocker,
+  settingsOpen = false,
+}: Props) {
   const navigate = useNavigate();
+  const { account, accountLoading, disconnect } = useGroupSession();
   const [profile, setProfile] = useState(loadProfile);
   const name = profile.displayName;
   const [joinCode, setJoinCode] = useState(code ?? '');
@@ -114,61 +130,137 @@ export function EntryForm({ code, pending, error, connect }: Props) {
               avatar={profile.avatar}
               onChange={(avatar) => updateProfile({ avatar })}
             />
-            <label className="profile-name">
-              <input
-                ref={nameInput}
-                id="profile-name"
-                aria-label={t.displayName}
-                placeholder={t.yourName}
-                autoComplete="off"
-                maxLength={DISPLAY_NAME_MAX_LENGTH}
-                value={name}
-                disabled={pending}
-                onChange={(event) => changeName(event.target.value)}
-                {...invalidProps('name')}
-              />
-              <FieldError id="name-error" message={errors.name} />
-            </label>
+            <div className="profile-identity">
+              <label className="profile-name">
+                <input
+                  ref={nameInput}
+                  id="profile-name"
+                  aria-label={t.displayName}
+                  placeholder={t.yourName}
+                  autoComplete="off"
+                  maxLength={DISPLAY_NAME_MAX_LENGTH}
+                  value={name}
+                  disabled={pending}
+                  onChange={(event) => changeName(event.target.value)}
+                  {...invalidProps('name')}
+                />
+                <FieldError id="name-error" message={errors.name} />
+              </label>
+              {!accountLoading && (
+                <div
+                  className={`profile-account-status-row${account && !account.isAnonymous ? ' is-connected' : ''}`}
+                >
+                  {account && !account.isAnonymous ? (
+                    <>
+                      <span className="profile-account-status">
+                        <span
+                          className="profile-status-dot"
+                          aria-hidden="true"
+                        />
+                        {t.community.signedInAs}{' '}
+                        <strong>
+                          {account.username || name || t.yourName}
+                        </strong>
+                      </span>
+                      <button
+                        className="profile-account-link"
+                        type="button"
+                        onClick={() => void disconnect()}
+                      >
+                        {t.community.signOut}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="profile-account-status">
+                        <span
+                          className="profile-status-dot"
+                          aria-hidden="true"
+                        />
+                        {account?.isAnonymous
+                          ? t.community.guestAccount
+                          : t.community.notConnected}
+                      </span>
+                      <span className="profile-account-links">
+                        <button
+                          className="profile-account-link"
+                          type="button"
+                          onClick={() =>
+                            onOpenCommunity?.('friends', 'sign-in')
+                          }
+                        >
+                          {t.community.signIn}
+                        </button>
+                        <button
+                          className="profile-account-link is-primary"
+                          type="button"
+                          onClick={() =>
+                            onOpenCommunity?.('friends', 'sign-up')
+                          }
+                        >
+                          {t.community.createAccount}
+                        </button>
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div
             className="profile-actions"
             role="group"
             aria-label={t.shortcuts}
           >
-            {(
-              [
-                [t.friends, 'users', '/friends'],
-                [t.group, 'users', '/group'],
-                [t.stats, 'stats', '/stats'],
-                [t.leaderboard, 'trophy', '/leaderboard'],
-                [t.settings, 'settings', null],
-              ] as const
-            ).map(([label, icon, path]) => {
-              const soon = path === null;
-              return (
-                <div
-                  className={`profile-action profile-action-${icon}`}
-                  key={icon}
-                >
-                  <button
-                    type="button"
-                    aria-label={soon ? t.comingSoonLabel(label) : undefined}
-                    aria-disabled={soon || undefined}
-                    onClick={soon ? undefined : () => navigate(path)}
-                  >
-                    <span className="profile-action-icon">
-                      <Icon name={icon} />
-                    </span>
-                    <span className="profile-action-label">{label}</span>
-                  </button>
-                  {soon && (
-                    <span className="profile-tooltip" aria-hidden="true">
-                      {t.comingSoonTip(label)}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+            <div className="profile-action profile-action-locker">
+              <button
+                type="button"
+                aria-label={t.locker}
+                onClick={onOpenLocker}
+              >
+                <span className="profile-action-icon">
+                  <Icon name="locker" />
+                </span>
+                <span className="profile-action-label">{t.locker}</span>
+              </button>
+            </div>
+            <div className="profile-action profile-action-social">
+              <button
+                type="button"
+                aria-label={t.community.openCommunity}
+                onClick={() => onOpenCommunity?.('friends')}
+              >
+                <span className="profile-action-icon">
+                  <Icon name="users" />
+                </span>
+                <span className="profile-action-label">{t.social}</span>
+              </button>
+            </div>
+            <div className="profile-action profile-action-trophy">
+              <button
+                type="button"
+                aria-label={t.community.openArena}
+                onClick={() => navigate('/stats')}
+              >
+                <span className="profile-action-icon">
+                  <Icon name="trophy" />
+                </span>
+                <span className="profile-action-label">{t.arena}</span>
+              </button>
+            </div>
+            <div className="profile-action profile-action-settings">
+              <button
+                type="button"
+                aria-expanded={settingsOpen}
+                aria-controls="settings-drawer"
+                onClick={onOpenSettings}
+              >
+                <span className="profile-action-icon">
+                  <Icon name="settings" />
+                </span>
+                <span className="profile-action-label">{t.settings}</span>
+              </button>
+            </div>
           </div>
         </section>
       )}

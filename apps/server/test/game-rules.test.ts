@@ -51,6 +51,9 @@ test('accepts dictionary words containing the prompt and advances only one turn'
   assert.equal(game.activePlayerId, 'b');
   assert.equal(game.usedWords.has('chat'), true);
   assert.equal(game.players.get('a')!.lastWord, 'chat');
+  assert.equal(game.players.get('a')!.wordsPlayed, 1);
+  assert.equal(game.players.get('a')!.wordsAccepted, 1);
+  assert.equal(game.players.get('a')!.bestStreak, 1);
   assert.equal(game.players.get('b')!.lastWord, '');
   assert.equal(game.turnId, 2);
   assert.equal(game.submit('a', 'chats', 1, 101), 'not-your-turn');
@@ -155,6 +158,7 @@ test('bonus alphabet accumulates per player, awards one life, and resets', () =>
   game.submit('b', 'chats', game.turnId, 2);
   assert.equal(game.submit('a', 'chou', game.turnId, 3), null);
   assert.equal(game.players.get('a')!.lives, 3);
+  assert.equal(game.players.get('a')!.livesRecovered, 1);
   assert.equal(game.players.get('a')!.bonusLetters, '');
 });
 

@@ -13,6 +13,7 @@
   "dependencies": {
     "@but/bomb-party": "workspace:*",
     "@but/shared": "workspace:*",
+    "@supabase/supabase-js": "2.116.0",
     "@colyseus/core": "0.18.14",
     "@colyseus/schema": "5.0.33",
     "@colyseus/ws-transport": "0.18.2",

@@ -20,22 +20,6 @@ export const gameCards = [
     image: '/images/tank-arena.png',
   },
   {
-    id: 'brawl-like',
-    name: 'Brawl-like',
-    min: 2,
-    max: 8,
-    color: 'sky',
-    image: '/images/brawl-like.png',
-  },
-  {
-    id: 'blackjack-party',
-    name: 'Blackjack Party',
-    min: 2,
-    max: 7,
-    color: 'sun',
-    image: '/images/blackjack-party.png',
-  },
-  {
     id: 'poker-party',
     name: 'Poker Party',
     min: 2,

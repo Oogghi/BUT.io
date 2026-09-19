@@ -1,12 +1,17 @@
 import {
   PLANNING_SECONDS,
   actions,
+  isMapVoteId,
   jungleMap,
+  mapIds,
+  maps,
   pickupKinds,
+  RANDOM_MAP_ID,
   tankActions,
   tanks,
   type ArenaMap,
   type Hazard,
+  type MapVoteId,
   type Pickup,
   type PlanError,
   type Replay,
@@ -17,6 +22,25 @@ import { TICK_RATE, Terrain } from './physics.js';
 import { Simulation, type Intent, type Tank } from './sim.js';
 
 export { Simulation, type Intent, type Tank } from './sim.js';
+
+/** Resolves optional votes; ties are random, and the random card stays a real choice. */
+export function selectMapId(
+  votes: readonly string[],
+  random: () => number = Math.random,
+): keyof typeof maps {
+  const counts = new Map<MapVoteId, number>();
+  for (const vote of votes)
+    if (isMapVoteId(vote)) counts.set(vote, (counts.get(vote) ?? 0) + 1);
+  if (!counts.size) return mapIds[Math.floor(random() * mapIds.length)]!;
+  const highest = Math.max(...counts.values());
+  const tied = [...counts]
+    .filter(([, count]) => count === highest)
+    .map(([mapId]) => mapId);
+  const winner = tied[Math.floor(random() * tied.length)] ?? RANDOM_MAP_ID;
+  return winner === RANDOM_MAP_ID
+    ? mapIds[Math.floor(random() * mapIds.length)]!
+    : winner;
+}
 
 /** Pause after a replay before the next planning phase, so results can be read. */
 const RESOLUTION_PAUSE_MS = 1200;
@@ -40,11 +64,12 @@ export class TankArenaGame {
   hazard: Hazard | null = null;
   replay: Replay | null = null;
   winnerId = '';
+  winnerTeam = '';
   ended = false;
   resultReason = '';
 
   constructor(
-    entries: { id: string; tank: TankId }[],
+    entries: { id: string; tank: TankId; team?: string }[],
     now: number,
     private readonly random: () => number = Math.random,
     readonly map: ArenaMap = jungleMap,
@@ -55,7 +80,7 @@ export class TankArenaGame {
     )
       throw new Error('A match needs distinct players.');
     this.terrain = new Terrain(map);
-    entries.forEach(({ id, tank }, seat) => {
+    entries.forEach(({ id, tank, team }, seat) => {
       // Spread seats across the sorted spawn points so small matches start far apart.
       const spawn =
         map.spawns[
@@ -66,6 +91,7 @@ export class TankArenaGame {
       const x = spawn[0];
       this.players.set(id, {
         id,
+        team: team ?? id,
         tank,
         x,
         y: this.terrain.surfaceBelow(x, spawn[1] - 20) ?? spawn[1],
@@ -75,6 +101,8 @@ export class TankArenaGame {
         av: 0,
         grounded: true,
         calm: 0,
+        bubbleTicks: 0,
+        bubbleBounces: 0,
         facing: x < map.width / 2 ? 1 : -1,
         health: tanks[tank].health,
         maxHealth: tanks[tank].health,
@@ -85,16 +113,22 @@ export class TankArenaGame {
         boost: '',
         poisonTurns: 0,
         frozenTurns: 0,
+        shotsFired: 0,
+        shotsHit: 0,
+        damageDealt: 0,
+        kills: 0,
+        deaths: 0,
       });
     });
     this.beginPlanning(now);
   }
 
-  /** Stores (or replaces) a player's hidden intent and marks them confirmed. */
+  /** Stores a player's hidden intent and marks them ready. A ready plan is final. */
   plan(id: string, value: unknown, now: number): PlanError | null {
     const player = this.players.get(id);
     if (this.ended || this.stage !== 'planning' || !player?.alive)
       return 'not-playing';
+    if (player.confirmed) return 'locked';
     if (!value || typeof value !== 'object' || Array.isArray(value))
       return 'invalid-action';
     const { action, angle, power, turn } = value as Record<string, unknown>;
@@ -238,10 +272,12 @@ export class TankArenaGame {
 
   private finishIfNeeded(reason = 'winner'): boolean {
     const alive = [...this.players.values()].filter((player) => player.alive);
-    if (alive.length > 1) return false;
+    const aliveTeams = new Set(alive.map((player) => player.team));
+    if (aliveTeams.size > 1) return false;
     this.ended = true;
     this.stage = '';
     this.winnerId = alive[0]?.id ?? '';
+    this.winnerTeam = alive[0]?.team ?? '';
     this.resultReason = reason;
     this.deadline = 0;
     return true;

@@ -35,6 +35,12 @@ export interface BombPartyPlayerState {
   lives: number;
   bonusLetters: string;
   lastWord: string;
+  wordsPlayed?: number;
+  wordsAccepted?: number;
+  livesLost?: number;
+  bestStreak?: number;
+  currentStreak?: number;
+  livesRecovered?: number;
 }
 
 export interface BombPartyState {

@@ -20,10 +20,14 @@ export interface LobbyPlayer {
 export interface JoinOptions {
   displayName: string;
   avatar?: number;
+  /** Supabase access token; server-only validation enables authoritative rewards. */
+  authToken?: string;
 }
 
 /** Number of avatar looks. Clients draw them; the server only stores the index. */
 export const AVATAR_COUNT = 6;
+
+export * from './rewards.ts';
 
 export function isAvatar(value: unknown): value is number {
   return (
@@ -56,7 +60,11 @@ export type LobbyErrorCode =
   | 'wrong-phase'
   | 'host-only'
   | 'not-enough-players'
-  | 'players-not-ready';
+  | 'players-not-ready'
+  | 'invalid-team-mode'
+  | 'invalid-team'
+  | 'team-full'
+  | 'team-setup';
 
 export const DISPLAY_NAME_MAX_LENGTH = 24;
 export const LOBBY_CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/;

@@ -1,5 +1,5 @@
 /** Game ids that currently emit stats. Keep this contract independent of game state. */
-export type StatsGameId = 'bomb-party' | 'tank-arena';
+export type StatsGameId = 'bomb-party' | 'tank-arena' | 'blackjack-party';
 
 export type MatchOutcome = 'win' | 'loss' | 'draw';
 
@@ -18,17 +18,37 @@ export interface BombPartyMatchStats extends MatchStatCounters {
   wordsPlayed: number;
   wordsAccepted: number;
   livesLost: number;
+  bestStreak?: number;
+  livesRecovered?: number;
 }
 
 export interface TankArenaMatchStats extends MatchStatCounters {
   shotsFired: number;
   shotsHit: number;
   damageDealt: number;
+  kills?: number;
+  deaths?: number;
+}
+
+export interface BlackjackMatchStats extends MatchStatCounters {
+  roundsPlayed: number;
+  roundsWon: number;
+  blackjacks: number;
+  busts: number;
+  doubleDownWins: number;
+  splitWins: number;
+  perfectPairsWins: number;
+  twentyOnePlusThreeWins: number;
+  highestEndingChipBalance: number;
+  rebuys: number;
+  globalCurrencySpentOnRebuys: number;
 }
 
 export interface BombPartyStats extends GlobalStats, BombPartyMatchStats {}
 
 export interface TankArenaStats extends GlobalStats, TankArenaMatchStats {}
+
+export interface BlackjackStats extends GlobalStats, BlackjackMatchStats {}
 
 export interface MatchParticipant<Stats extends MatchStatCounters> {
   playerId: string;
@@ -58,7 +78,13 @@ export type TankArenaMatchResult = MatchResult<
   TankArenaMatchStats
 >;
 
-export type AnyMatchResult = BombPartyMatchResult | TankArenaMatchResult;
+export type BlackjackMatchResult = MatchResult<
+  'blackjack-party',
+  BlackjackMatchStats
+>;
+
+export type AnyMatchResult =
+  BombPartyMatchResult | TankArenaMatchResult | BlackjackMatchResult;
 
 export function emptyBombPartyMatchStats(): BombPartyMatchStats {
   return { wordsPlayed: 0, wordsAccepted: 0, livesLost: 0 };
@@ -66,6 +92,22 @@ export function emptyBombPartyMatchStats(): BombPartyMatchStats {
 
 export function emptyTankArenaMatchStats(): TankArenaMatchStats {
   return { shotsFired: 0, shotsHit: 0, damageDealt: 0 };
+}
+
+export function emptyBlackjackMatchStats(): BlackjackMatchStats {
+  return {
+    roundsPlayed: 0,
+    roundsWon: 0,
+    blackjacks: 0,
+    busts: 0,
+    doubleDownWins: 0,
+    splitWins: 0,
+    perfectPairsWins: 0,
+    twentyOnePlusThreeWins: 0,
+    highestEndingChipBalance: 0,
+    rebuys: 0,
+    globalCurrencySpentOnRebuys: 0,
+  };
 }
 
 /** Aggregate one player's raw counters from completed matches. */
@@ -118,6 +160,22 @@ export function aggregateTankArenaStats(
   playerId: string,
 ): TankArenaStats {
   return aggregateStats(results, playerId, emptyTankArenaMatchStats());
+}
+
+export function aggregateBlackjackStats(
+  results: readonly BlackjackMatchResult[],
+  playerId: string,
+): BlackjackStats {
+  const totals = aggregateStats(results, playerId, emptyBlackjackMatchStats());
+  totals.highestEndingChipBalance = Math.max(
+    0,
+    ...results.map(
+      (result) =>
+        result.players.find((player) => player.playerId === playerId)?.stats
+          .highestEndingChipBalance ?? 0,
+    ),
+  );
+  return totals;
 }
 
 export function combineGlobalStats(

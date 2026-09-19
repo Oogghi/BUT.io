@@ -45,13 +45,18 @@ function snapshotTankArena(state: TankArenaRoomState) {
     serverClock = { serverNow: game.serverNow, receivedAt: performance.now() };
   return {
     gameId: 'tank-arena' as const,
+    teamMode: state.teamMode,
+    teamCount: state.teamCount,
+    teams: new Map(state.teams),
     loadouts: new Map(state.loadouts),
+    mapVotes: new Map(state.mapVotes),
     game: {
       stage: game.stage,
       turn: game.turn,
       /** `performance.now()` time the current stage ends on this client. */
       endsAt: serverClock.receivedAt + (game.deadline - game.serverNow),
       winnerId: game.winnerId,
+      winnerTeam: game.winnerTeam,
       map: game.map,
       replay: parseReplay(game.replay),
       craters: JSON.parse(game.craters || '[]') as [number, number, number][],
@@ -61,6 +66,7 @@ function snapshotTankArena(state: TankArenaRoomState) {
         Array.from(game.players, ([id, player]) => [
           id,
           {
+            team: player.team,
             tank: isTankId(player.tank) ? player.tank : 'howler',
             x: player.x,
             y: player.y,

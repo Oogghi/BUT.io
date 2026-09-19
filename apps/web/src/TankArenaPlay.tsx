@@ -57,6 +57,9 @@ export function TankArenaPlay({
   const me = game.players.get(sessionId);
   const planning = game.stage === 'planning';
   const canPlan = planning && Boolean(me?.alive);
+  // Ready is final for the turn: the plan can no longer change.
+  const locked = Boolean(me?.confirmed);
+  const canAct = canPlan && !locked;
   const [action, setAction] = useState<ActionId>('missile');
   const [aim, setAim] = useState({
     angle: me && me.facing < 0 ? -135 : -45,
@@ -73,7 +76,7 @@ export function TankArenaPlay({
     (actions[id].movement && me.frozenTurns > 0);
 
   function confirm() {
-    if (!canPlan || unavailable(action)) return;
+    if (!canAct || unavailable(action)) return;
     send('plan', {
       action,
       angle: aim.angle,
@@ -85,7 +88,7 @@ export function TankArenaPlay({
   const handlers = useRef({ confirm, choose: (_id: ActionId) => {} });
   handlers.current = {
     confirm,
-    choose: (id) => !unavailable(id) && setAction(id),
+    choose: (id) => canAct && !unavailable(id) && setAction(id),
   };
 
   useEffect(() => {
@@ -131,9 +134,8 @@ export function TankArenaPlay({
             ? t.ta.frozen
             : me.confirmed
               ? t.ta.lockedIn
-              : info.aim === 'none'
-                ? t.ta.noAimHint
-                : t.ta.aimHint);
+              : // What the selected action does.
+                t.ta.actionHint(...t.ta.actions[action]));
   const boost = me?.alive && me.boost ? ` · ${t.ta.boosts[me.boost]}` : '';
 
   const hud = useMemo((): ArenaHud => {
@@ -147,14 +149,15 @@ export function TankArenaPlay({
         disabled: unavailable(id),
       })),
       selected: action,
-      showPower: canPlan && info.aim !== 'none',
+      showPower: canAct && info.aim !== 'none',
       confirm: !canPlan
         ? 'hidden'
-        : unavailable(action)
-          ? 'disabled'
-          : me?.confirmed
-            ? 'locked'
+        : locked
+          ? 'locked'
+          : unavailable(action)
+            ? 'disabled'
             : 'ready',
+      readyLabel: t.ready,
       endsAt: planning ? game.endsAt : 0,
       hint: hint ? `${t.ta.turn(game.turn)} · ${hint}${boost}` : '',
       error: Boolean(error),
@@ -163,6 +166,8 @@ export function TankArenaPlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canPlan,
+    canAct,
+    locked,
     me,
     action,
     info,
@@ -178,14 +183,14 @@ export function TankArenaPlay({
     if (ready) arena.current?.update(view);
   }, [view, ready]);
   useEffect(() => {
-    if (ready) arena.current?.setAim(canPlan ? { action, ...aim } : null);
-  }, [canPlan, action, aim, ready]);
+    if (ready) arena.current?.setAim(canAct ? { action, ...aim } : null);
+  }, [canAct, action, aim, ready]);
   useEffect(() => {
     if (ready) arena.current?.setHud(hud);
   }, [hud, ready]);
 
   useEffect(() => {
-    if (!canPlan || !me) return;
+    if (!canAct || !me) return;
     const choices = tankActions(me.tank);
     const onKey = (event: KeyboardEvent) => {
       if (
@@ -213,7 +218,7 @@ export function TankArenaPlay({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [canPlan, me]);
+  }, [canAct, me]);
 
   return (
     <div className="tank-play">
@@ -221,7 +226,6 @@ export function TankArenaPlay({
       <p className="sr-only" role="status">
         {t.ta.turn(game.turn)}. {planning ? t.ta.planning : t.ta.resolving}.{' '}
         {hint}
-        {canPlan && ` ${t.ta.actions[action][0]}.`}
       </p>
     </div>
   );

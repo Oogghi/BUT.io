@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   PLANNING_SECONDS,
+  RANDOM_MAP_ID,
+  iceMap,
   jungleMap,
+  lavaMap,
   samplePath,
+  validTankTeams,
   type TankId,
 } from '@but/tank-arena';
 import {
+  BUBBLE_RADIUS,
   DT,
   GRAVITY,
   TANK_H,
@@ -16,10 +21,16 @@ import {
   jumpPreview,
   shellPreview,
   stepBallistic,
+  stepBubble,
   wrapDelta,
   wrapX,
 } from '@but/tank-arena/physics';
-import { Simulation, TankArenaGame, type Tank } from '@but/tank-arena/server';
+import {
+  selectMapId,
+  Simulation,
+  TankArenaGame,
+  type Tank,
+} from '@but/tank-arena/server';
 
 function seeded(seed = 7) {
   return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -53,6 +64,59 @@ test('shells follow semi-implicit Euler ballistics exactly', () => {
       100 - 600 * DT * tick + (GRAVITY * DT * DT * tick * (tick + 1)) / 2;
     assert.ok(Math.abs(body.y - y) < 1e-6, `tick ${tick}`);
   }
+});
+
+test('map votes resolve a winner and tune map physics', () => {
+  assert.equal(selectMapId(['ice', '']), 'ice');
+  assert.equal(
+    selectMapId(['ice', 'jungle'], () => 0),
+    'ice',
+  );
+  assert.equal(
+    selectMapId([RANDOM_MAP_ID], () => 0),
+    'jungle',
+  );
+  assert.ok(iceMap.friction < jungleMap.friction);
+  assert.ok(iceMap.craterMultiplier > jungleMap.craterMultiplier);
+  assert.ok(lavaMap.gravity > jungleMap.gravity);
+  assert.ok(lavaMap.friction > jungleMap.friction);
+  assert.ok(lavaMap.craterMultiplier > 0);
+  assert.ok(lavaMap.craterMultiplier < jungleMap.craterMultiplier);
+});
+
+test('team setup accepts arbitrary compositions instead of fixed presets', () => {
+  const players = ['a', 'b', 'c', 'd', 'e'];
+  assert.equal(
+    validTankTeams(
+      'teams',
+      players,
+      new Map([
+        ['a', 'team-1'],
+        ['b', 'team-1'],
+        ['c', 'team-2'],
+        ['d', 'team-2'],
+        ['e', 'team-3'],
+      ]),
+      3,
+    ),
+    true,
+  );
+  assert.equal(
+    validTankTeams(
+      'teams',
+      players,
+      new Map([
+        ['a', 'team-1'],
+        ['b', 'team-1'],
+        ['c', 'team-2'],
+        ['d', 'team-2'],
+        ['e', 'team-2'],
+      ]),
+      3,
+    ),
+    false,
+    'every selected team needs a player',
+  );
 });
 
 test('shell previews stop on terrain and water', () => {
@@ -115,6 +179,56 @@ test('explosion damage falls off with distance and shields absorb first', () => 
     damage.map((event) => event.id),
     ['a', 'b'],
   );
+});
+
+test('authoritative combat counters credit the firing tank', () => {
+  const game = create(['viper', 'howler']);
+  place(game, 'a', 400);
+  place(game, 'b', 400 + TANK_W / 2 + 30);
+  const sim = new Simulation(
+    game.terrain,
+    [...game.players.values()],
+    [],
+    [],
+    seeded(),
+  );
+  sim.explode(
+    400,
+    715,
+    { kind: 'shell', damage: 200, radius: 60, knockback: 1, crater: 0 },
+    'a',
+    true,
+  );
+  assert.equal(tank(game, 'a').shotsHit, 1);
+  assert.equal(tank(game, 'a').damageDealt, 150);
+  assert.equal(tank(game, 'a').kills, 1);
+  assert.equal(tank(game, 'b').deaths, 1);
+});
+
+test('team shots do not damage teammates', () => {
+  const game = new TankArenaGame(
+    [
+      { id: 'a', tank: 'viper', team: 'team-1' },
+      { id: 'b', tank: 'howler', team: 'team-1' },
+    ],
+    0,
+  );
+  place(game, 'a', 400);
+  place(game, 'b', 400 + TANK_W / 2 + 30);
+  const before = tank(game, 'b').health;
+  new Simulation(
+    game.terrain,
+    [...game.players.values()],
+    [],
+    [],
+    seeded(),
+  ).explode(
+    400,
+    715,
+    { kind: 'shell', damage: 100, radius: 100, knockback: 0, crater: 0 },
+    'a',
+  );
+  assert.equal(tank(game, 'b').health, before);
 });
 
 test('knockback pushes away from the blast and throws light tanks further', () => {
@@ -249,10 +363,10 @@ test('turn lifecycle: hidden plans, simultaneous resolution, timeout default, ne
   );
   assert.equal(tank(game, 'a').confirmed, true);
   assert.equal(game.stage, 'planning', 'waits for everyone');
-  // Changing your mind before the turn locks is allowed.
+  // Ready is final: a second plan in the same turn is rejected.
   assert.equal(
     game.plan('a', { action: 'missile', angle: -45, power: 0.8, turn: 1 }, 1),
-    null,
+    'locked',
   );
   assert.equal(game.update(PLANNING_SECONDS * 1000 - 1), false);
   // Timeout: the unconfirmed tank skips; the confirmed one fires.
@@ -484,4 +598,81 @@ test('rigid tanks settle tilted on slopes and spin when hit off-center', () => {
     tank(game, 'b').av < -0.2,
     `spins counter-clockwise: ${tank(game, 'b').av}`,
   );
+});
+
+test('Pulse Bomb is launched like a shell and blasts nearby tanks away', () => {
+  const game = create(['howler', 'neon']);
+  place(game, 'a', 300);
+  place(game, 'b', 700);
+  const pulse = new Simulation(
+    game.terrain,
+    [...game.players.values()],
+    [],
+    [],
+    () => 0.5,
+  );
+  // A flat, gentle lob that lands just short of the Neon.
+  const angle = -40;
+  pulse.run(
+    new Map([['a', { action: 'shockwave' as const, angle, power: 0.55 }]]),
+    null,
+  );
+  assert.ok(pulse.tracks.some((track) => track.kind === 'pulse'));
+  const blast = pulse.events.find((event) => event.type === 'explode');
+  assert.ok(blast && blast.type === 'explode' && blast.r === 150);
+  assert.equal(blast.crater, 0, 'no crater');
+  assert.ok(
+    Math.abs(tank(game, 'b').x - 700) > 40,
+    `Neon was pushed: x=${tank(game, 'b').x}`,
+  );
+});
+
+test('Spike Bubble bounces around, spikes tanks for 10 per touch, then pops', () => {
+  const game = create(['neon', 'howler']);
+  place(game, 'a', 400);
+  place(game, 'b', 900);
+  const bubble = new Simulation(
+    game.terrain,
+    [...game.players.values()],
+    [],
+    [],
+    () => 0.5,
+  );
+  bubble.run(
+    new Map([
+      ['a', { action: 'spike-bubble' as const, angle: -15, power: 0.9 }],
+    ]),
+    null,
+  );
+  const hits = bubble.events.filter(
+    (event) => event.type === 'damage' && event.id === 'b',
+  );
+  assert.ok(hits.length >= 1, 'touched the Howler');
+  for (const hit of hits) assert.ok(hit.type === 'damage' && hit.amount === 10);
+  assert.equal(tank(game, 'b').health, 150 - 10 * hits.length);
+  assert.equal(tank(game, 'a').damageDealt, 10 * hits.length, 'credited');
+  assert.deepEqual(
+    bubble.events
+      .filter((event) => event.type === 'bubble')
+      .map((event) => event.type === 'bubble' && event.active),
+    [true, false],
+  );
+  // Back to a normal tank: upright and resting.
+  assert.equal(tank(game, 'a').bubbleTicks, 0);
+  assert.equal(tank(game, 'a').grounded, true);
+  assert.ok(Math.abs(tank(game, 'a').angle) < 0.05);
+});
+
+test('Spike Bubble bounces off the floor instead of stopping', () => {
+  const terrain = new Terrain(jungleMap);
+  const body = { x: 800, y: 600, vx: 0, vy: 600 };
+  let bounces = 0;
+  let lowest = 0;
+  for (let tick = 0; tick < 90; tick++) {
+    if (stepBubble(terrain.solid.bind(terrain), jungleMap.width, body))
+      bounces++;
+    lowest = Math.max(lowest, body.y);
+  }
+  assert.ok(bounces >= 2, `bounced ${bounces} times`);
+  assert.ok(lowest <= 733 - BUBBLE_RADIUS + 3, 'never sank into the floor');
 });

@@ -196,6 +196,9 @@ importers:
       '@colyseus/ws-transport':
         specifier: 0.18.2
         version: 0.18.2(@colyseus/core@0.18.14)(express@5.2.1)
+      '@supabase/supabase-js':
+        specifier: 2.116.0
+        version: 2.116.0
       express:
         specifier: 5.2.1
         version: 5.2.1
