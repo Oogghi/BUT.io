@@ -423,6 +423,14 @@ h3 {
   color: #7d7598;
   --shadow: var(--shadow-deep);
 }
+.secondary {
+  background: var(--surface-2);
+  color: var(--text);
+  --shadow: var(--shadow-deep);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--line);
+}
 .button > svg:last-child {
   transition: transform 0.3s var(--pop);
 }
@@ -1924,6 +1932,23 @@ input[aria-invalid='true'] {
 }
 .community-auth-switch {
   justify-self: center;
+}
+.community-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+.community-auth-divider::before,
+.community-auth-divider::after {
+  height: 1px;
+  flex: 1;
+  content: '';
+  background: var(--line);
 }
 .community-search {
   display: grid;

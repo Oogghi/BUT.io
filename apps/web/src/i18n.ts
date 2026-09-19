@@ -96,6 +96,11 @@ const en = {
     signOut: 'Sign out',
     signIn: 'Sign in',
     createAccount: 'Create account',
+    continueAsGuest: 'Continue as guest',
+    guestAccount: 'Guest session',
+    guestDescription:
+      'Your guest group membership stays on this browser. Create an account later for a portable identity.',
+    or: 'or',
     authDescription: 'Sign in to use friends, groups, stats, and leaderboards.',
     email: 'Email',
     password: 'Password',
@@ -397,6 +402,11 @@ const fr: typeof en = {
     signOut: 'Se déconnecter',
     signIn: 'Se connecter',
     createAccount: 'Créer un compte',
+    continueAsGuest: 'Continuer comme invité',
+    guestAccount: 'Session invité',
+    guestDescription:
+      'Ton groupe reste sur ce navigateur. Crée un compte plus tard pour garder ton identité.',
+    or: 'ou',
     authDescription:
       'Connecte-toi pour utiliser les amis, les groupes, les stats et les classements.',
     email: 'E-mail',

@@ -69,6 +69,7 @@ export interface Account {
   userId: string;
   email: string;
   username: string;
+  isAnonymous: boolean;
 }
 
 interface GameStatsRow {
@@ -386,6 +387,7 @@ export async function currentAccount(): Promise<Account | null> {
     userId: user.id,
     email: user.email ?? '',
     username: profile?.username ?? '',
+    isAnonymous: user.is_anonymous === true,
   };
 }
 
@@ -434,6 +436,17 @@ export async function signIn(
   return account;
 }
 
+export async function signInAnonymously(): Promise<Account> {
+  const { data, error } = await client().auth.signInAnonymously();
+  fail(error);
+  if (!data.user)
+    throw new DataLayerError('not-authenticated', 'Guest sign in failed.');
+  const account = await currentAccount();
+  if (!account)
+    throw new DataLayerError('not-authenticated', 'Guest sign in failed.');
+  return account;
+}
+
 export async function signUp(
   email: string,
   password: string,
@@ -457,12 +470,14 @@ export async function signUp(
 export async function completeProfile(
   userId: string,
   username: string,
+  isAnonymous = false,
 ): Promise<Account> {
   await saveProfile(userId, username);
   return {
     userId,
     email: '',
     username: username.trim(),
+    isAnonymous,
   };
 }
 
@@ -714,7 +729,9 @@ export async function loadGroupState(userId: string): Promise<GroupState> {
   ]);
   const members = memberRows.map((row) => ({
     userId: row.user_id,
-    username: memberProfiles.get(row.user_id)?.username ?? 'Player',
+    username:
+      memberProfiles.get(row.user_id)?.username ??
+      (row.user_id === userId ? 'Guest' : 'Player'),
     joinedAt: row.joined_at,
     isLeader: row.user_id === groupRow.leader_id,
   }));

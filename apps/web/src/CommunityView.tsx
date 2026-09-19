@@ -21,6 +21,7 @@ import {
   searchProfiles,
   sendFriendRequest,
   signIn,
+  signInAnonymously,
   signOut,
   signUp,
   type Account,
@@ -125,10 +126,12 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
         </nav>
       </header>
 
-      {account && account.username && (
+      {account && (account.username || account.isAnonymous) && (
         <div className="community-account">
           <span>
-            {t.community.signedInAs} <strong>{account.username}</strong>
+            {account.isAnonymous
+              ? t.community.guestAccount
+              : `${t.community.signedInAs} ${account.username}`}
           </span>
           <button
             className="text-link"
@@ -146,7 +149,7 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
         <ErrorState message={error} />
       ) : !account ? (
         <AuthPanel onAuthenticated={setAccount} />
-      ) : !account.username ? (
+      ) : !account.username && !account.isAnonymous ? (
         <ProfileSetup account={account} onComplete={setAccount} />
       ) : feature === 'group' ? (
         <GroupFeature account={account} />
@@ -270,6 +273,27 @@ function AuthPanel({
       >
         {mode === 'sign-in' ? t.community.needAccount : t.community.haveAccount}
       </button>
+      {mode === 'sign-in' && (
+        <>
+          <div className="community-auth-divider">{t.community.or}</div>
+          <button
+            className="button secondary"
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError('');
+              void signInAnonymously()
+                .then(onAuthenticated)
+                .catch((cause) => setError(errorMessage(cause)))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? t.community.working : t.community.continueAsGuest}
+          </button>
+          <p className="community-muted">{t.community.guestDescription}</p>
+        </>
+      )}
     </form>
   );
 }
@@ -290,7 +314,9 @@ function ProfileSetup({
     setBusy(true);
     setError('');
     try {
-      onComplete(await completeProfile(account.userId, username));
+      onComplete(
+        await completeProfile(account.userId, username, account.isAnonymous),
+      );
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
