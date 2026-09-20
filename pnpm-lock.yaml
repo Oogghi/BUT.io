@@ -178,6 +178,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@but/blackjack-party':
+        specifier: workspace:*
+        version: link:../../games/blackjack-party
       '@but/bomb-party':
         specifier: workspace:*
         version: link:../../games/bomb-party
@@ -212,6 +215,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@but/blackjack-party':
+        specifier: workspace:*
+        version: link:../../games/blackjack-party
       '@but/bomb-party':
         specifier: workspace:*
         version: link:../../games/bomb-party
@@ -252,6 +258,12 @@ importers:
       vite:
         specifier: 8.3.0
         version: 8.3.0(@types/node@24.13.5)(esbuild@0.28.2)(tsx@4.23.13)
+
+  games/blackjack-party:
+    dependencies:
+      '@but/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
 
   games/bomb-party:
     dependencies:

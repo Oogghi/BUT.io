@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { bombParty } from '@but/bomb-party';
 import { tankArena } from '@but/tank-arena';
+import { blackjackParty } from '@but/blackjack-party';
 import type { LobbySnapshot } from './lobbyConnection';
 import { BombPartyPlay } from './BombPartyPlay';
 import { BombPartySettings } from './BombPartySettings';
@@ -9,6 +10,9 @@ import { TankArenaPlay } from './TankArenaPlay';
 import { TankLoadout } from './TankLoadout';
 import { TankTeamPicker } from './TankTeamPicker';
 import { MapVote } from './MapVote';
+import { BlackjackPlay } from './BlackjackPlay';
+import { BlackjackSettings } from './BlackjackSettings';
+import { BlackjackResults } from './BlackjackResults';
 import { gameCards } from './gameCards';
 import { PlayerAvatar } from './Avatar';
 import { StatsPopover, useStatsTarget } from './StatsPopover';
@@ -25,12 +29,19 @@ interface Props {
 
 export function LobbyView({ state, sessionId, send, leave, error }: Props) {
   const host = state.hostId === sessionId;
-  const game = state.gameId === tankArena.id ? tankArena : bombParty;
+  const game =
+    state.gameId === tankArena.id
+      ? tankArena
+      : state.gameId === blackjackParty.id
+        ? blackjackParty
+        : bombParty;
   const card = gameCards.find((entry) => entry.id === game.id)!;
   const capacity =
     state.gameId === bombParty.id
       ? state.settings.maxPlayers
-      : tankArena.maxPlayers;
+      : state.gameId === blackjackParty.id
+        ? blackjackParty.maxPlayers
+        : tankArena.maxPlayers;
   const self = state.players.find((player) => player.id === sessionId);
   // Spectators don't play, so only the others count toward starting.
   const participants = state.players.filter((player) => !player.spectator);
@@ -165,6 +176,10 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                         <span className="ready-label is-spectating">
                           <Icon name="eye" />
                           {t.spectating}
+                        </span>
+                      ) : inGame && state.gameId === blackjackParty.id ? (
+                        <span className="player-lives blackjack-chip-count">
+                          {state.game.players.get(player.id)?.chips ?? 0} ◉
                         </span>
                       ) : inGame && state.gameId === tankArena.id ? (
                         <span className="player-lives">
@@ -331,6 +346,15 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 error={error}
               />
             )}
+            {state.phase === 'playing' &&
+              state.gameId === blackjackParty.id && (
+                <BlackjackPlay
+                  state={state}
+                  sessionId={sessionId}
+                  send={send}
+                  error={error}
+                />
+              )}
             {state.phase === 'playing' && state.gameId === bombParty.id && (
               <BombPartyPlay
                 state={state}
@@ -340,7 +364,17 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 onPlayerClick={stats.toggle}
               />
             )}
-            {state.phase === 'results' && (
+            {state.phase === 'results' &&
+              state.gameId === blackjackParty.id && (
+                <BlackjackResults
+                  state={state}
+                  sessionId={sessionId}
+                  host={host}
+                  send={send}
+                />
+              )}
+            {state.phase === 'results' &&
+              state.gameId !== blackjackParty.id && (
                 <div className="results-content">
                   <span className="phase-symbol">
                     <Icon name="check" />
@@ -391,6 +425,13 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
               />
             </div>
           )}
+        {state.phase === 'lobby' && state.gameId === blackjackParty.id && (
+          <BlackjackSettings
+            settings={state.settings}
+            host={host}
+            send={send}
+          />
+        )}
       </div>
       <StatsPopover
         player={

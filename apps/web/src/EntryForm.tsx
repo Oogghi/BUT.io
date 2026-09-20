@@ -4,6 +4,7 @@ import { LayoutGroup, motion, useReducedMotion } from 'motion/react';
 import { DISPLAY_NAME_MAX_LENGTH, LOBBY_CODE_PATTERN } from '@but/shared';
 import { bombParty } from '@but/bomb-party';
 import { tankArena } from '@but/tank-arena';
+import { blackjackParty } from '@but/blackjack-party';
 import { Icon } from './Icon';
 import { ProfileAvatar } from './Avatar';
 import { loadProfile, saveProfile, type Profile } from './profile';
@@ -15,7 +16,7 @@ import type { AuthMode, CommunitySection } from './CommunityView';
 import type { Destination } from './App';
 
 /** Games with a server room; the other cards are placeholders. */
-const playable: string[] = [bombParty.id, tankArena.id];
+const playable: string[] = [bombParty.id, tankArena.id, blackjackParty.id];
 
 interface Props {
   code?: string;

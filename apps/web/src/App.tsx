@@ -26,7 +26,7 @@ import {
 } from './lobbyConnection';
 import { spring } from './spring';
 import { loadProfile, type Profile } from './profile';
-import { lobbyError, planError, wordError, t } from './i18n';
+import { blackjackError, lobbyError, planError, wordError, t } from './i18n';
 import {
   CommunityDrawer,
   CommunityView,
@@ -126,6 +126,13 @@ export default function App() {
     const stopPlanErrors = room.onMessage<string>('plan-error', (code) =>
       setError(planError(code)),
     );
+    const stopBlackjackErrors = room.onMessage<string>(
+      'blackjack-error',
+      (code) => setError(blackjackError(code)),
+    );
+    const stopRebuys = room.onMessage('rebuy-complete', () => {
+      dispatchEvent(new CustomEvent('but-reward-change'));
+    });
     const stopRewards = room.onMessage<{
       amount?: unknown;
       breakdown?: RewardNotice['breakdown'];
@@ -152,6 +159,8 @@ export default function App() {
       stopErrors();
       stopWordErrors();
       stopPlanErrors();
+      stopBlackjackErrors();
+      stopRebuys();
       stopRewards();
       if (room.connection.isOpen) void room.leave();
     };
@@ -215,7 +224,11 @@ export default function App() {
     await session.publishLobbyInvite(
       joined.roomId,
       gameId,
-      gameId === 'tank-arena' ? 'Tank Arena' : 'Bomb Party',
+      gameId === 'tank-arena'
+        ? 'Tank Arena'
+        : gameId === 'blackjack-party'
+          ? 'Blackjack Party'
+          : 'Bomb Party',
       group.id,
     );
   }
@@ -381,7 +394,11 @@ export default function App() {
 }
 
 function supportedGameId(value: string | undefined): GameId | null {
-  return value === 'bomb-party' || value === 'tank-arena' ? value : null;
+  return value === 'bomb-party' ||
+    value === 'tank-arena' ||
+    value === 'blackjack-party'
+    ? value
+    : null;
 }
 
 function LobbyRoute({

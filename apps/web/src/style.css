@@ -3182,11 +3182,10 @@ input[aria-invalid='true'] {
   text-align: center;
 }
 
-/* Blackjack Party — a stylized casino table, built from accessible HTML. */
+/* Blackjack Party — the house table: players seated around a felt, dealer opposite. */
 .blackjack-settings-panel {
   grid-column: 1 / -1;
   padding: 28px;
-  background: linear-gradient(135deg, #132b2a, #0e2332 60%), var(--surface);
 }
 .blackjack-settings-heading {
   display: flex;
@@ -3206,9 +3205,9 @@ input[aria-invalid='true'] {
 }
 .blackjack-settings-readonly {
   padding: 7px 12px;
-  border: 1px solid #c9a85b66;
   border-radius: 999px;
-  color: #e7c878;
+  color: var(--ink);
+  background: var(--sun);
   font-size: 13px;
   font-weight: 800;
 }
@@ -3227,19 +3226,18 @@ input[aria-invalid='true'] {
   margin-top: 4px;
 }
 .blackjack-settings-group {
-  border: 1px solid #365249;
+  border: 2px solid var(--line);
   border-radius: 18px;
-  background: #09231fe8;
+  background: #0a1c29;
   overflow: hidden;
 }
 .blackjack-settings-group > summary {
   cursor: pointer;
   padding: 16px 18px;
-  color: #f0d590;
   font-weight: 800;
 }
 .blackjack-settings-group[open] > summary {
-  border-bottom: 1px solid #365249;
+  border-bottom: 2px solid var(--line);
 }
 .blackjack-settings-grid {
   display: grid;
@@ -3257,7 +3255,7 @@ input[aria-invalid='true'] {
 .blackjack-payout-grid label {
   display: grid;
   gap: 7px;
-  color: #d8e2dc;
+  color: var(--muted);
   font-size: 13px;
   font-weight: 700;
 }
@@ -3267,10 +3265,10 @@ input[aria-invalid='true'] {
   width: 100%;
   min-height: 44px;
   padding: 9px 11px;
-  border: 1px solid #49645a;
-  border-radius: 11px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
   color: var(--text);
-  background: #061b19;
+  background: #081823;
   font: inherit;
 }
 .blackjack-toggle {
@@ -3278,463 +3276,955 @@ input[aria-invalid='true'] {
   align-items: center;
   min-height: 44px;
   padding: 9px 11px;
-  border: 1px solid #365249;
-  border-radius: 11px;
-  background: #0f302b;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
 }
 .blackjack-toggle input {
   width: 22px;
   min-height: 22px;
-  accent-color: #d4b15f;
+  accent-color: var(--mint);
 }
 .blackjack-payouts {
   grid-column: 1 / -1;
-  border-top: 1px solid #365249;
+  border-top: 2px solid var(--line);
   padding-top: 10px;
 }
 .blackjack-payouts summary {
   cursor: pointer;
-  color: #d4b15f;
   font-weight: 800;
 }
 .blackjack-currency-note {
   grid-column: 1 / -1;
   padding: 12px;
-  border-left: 3px solid #d4b15f;
-  background: #d4b15f12;
+  border-left: 3px solid var(--sun);
+  background: #ffc43d12;
 }
 
-.lobby-page.is-playing[data-game='blackjack-party'] .lobby-layout.is-playing {
-  max-width: 1180px;
-}
 .lobby-page.is-playing[data-game='blackjack-party'] .session-panel {
   padding: 0;
   overflow: hidden;
-  border: 1px solid #b8974e;
-  background: #031714;
-  box-shadow:
-    inset 0 0 0 2px #052d25,
-    0 10px 0 #020a08;
 }
-.blackjack-play {
-  color: #f8f0dc;
-  background: #031714;
+
+/* Table */
+.bj {
+  --felt: #0c2b3f;
+  --card-w: clamp(44px, 4cqw + 24px, 64px);
+  display: grid;
 }
-.blackjack-match-bar {
+/* The table lays out its own controls; the shared phase panel must not stretch them. */
+.bj .button {
+  width: auto;
+  margin-top: 0;
+}
+.bj-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   padding: 16px 24px;
-  border-bottom: 1px solid #b8974e66;
-  background: linear-gradient(90deg, #360c17, #68172a 50%, #360c17);
+  border-bottom: 2px solid var(--line);
+  background: var(--surface-2);
 }
-.blackjack-match-bar > div {
+.bj-round {
   display: grid;
   gap: 2px;
 }
-.blackjack-match-bar strong {
-  color: #f2d68b;
-  font-size: 17px;
+.bj-round strong {
+  font-size: 18px;
+  letter-spacing: -0.02em;
 }
-.blackjack-match-bar span {
-  color: #e5c9cc;
+.bj-round span {
+  color: var(--muted);
   font-size: 13px;
+  font-weight: 700;
 }
-.blackjack-timer {
+.bj-timer {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
-  border: 2px solid #e0bd65;
-  border-radius: 50%;
-  color: #fff8e8 !important;
-  background: #1c080e;
-  font-size: 18px !important;
-  font-weight: 900;
-  box-shadow: inset 0 0 0 3px #6e1d31;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  color: var(--mint);
 }
-.blackjack-table {
-  position: relative;
-  min-height: 610px;
-  padding: 30px 30px 38px;
-  background:
-    radial-gradient(ellipse at 50% 34%, #117a5d 0, #07543f 42%, #03382d 76%),
-    #064836;
-  isolation: isolate;
-}
-.blackjack-table::before {
-  content: '';
-  position: absolute;
-  inset: 12px;
-  z-index: -1;
-  border: 2px solid #cfad5b99;
-  border-radius: 44% 44% 28px 28px / 34% 34% 28px 28px;
-  box-shadow:
-    inset 0 0 0 8px #052b23,
-    inset 0 0 44px #00191499;
-}
-.blackjack-table::after {
-  content: '';
+.bj-timer svg {
   position: absolute;
   inset: 0;
-  z-index: -2;
-  opacity: 0.18;
-  background-image: radial-gradient(#d9c38e 0.55px, transparent 0.7px);
-  background-size: 5px 5px;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
 }
-.blackjack-dealer {
+.bj-timer circle {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.bj-timer-track {
+  stroke: #ffffff1c;
+}
+.bj-timer-fill {
+  stroke: currentColor;
+  transition: stroke-dashoffset 0.12s linear;
+}
+.bj-timer span {
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.bj-timer.is-urgent {
+  color: var(--coral);
+  animation: bj-tick 1s ease-in-out infinite;
+}
+@keyframes bj-tick {
+  50% {
+    transform: scale(1.09);
+  }
+}
+
+/* The felt: the same slab-and-rim treatment as the Bomb Party table. */
+.bj-felt {
+  /* The ring the seats sit on; each breakpoint pulls it in to keep seats on the felt. */
+  --ring-x: 36%;
+  --ring-y: 32%;
+  position: relative;
+  container-type: inline-size;
+  width: min(100%, 900px);
+  margin: 26px auto 34px;
+  /* Height comes from the ratio alone: a min-height here would widen the felt instead. */
+  aspect-ratio: 16 / 8.6;
+  border-radius: 40% 40% 46% 46% / 34% 34% 58% 58%;
+  background:
+    radial-gradient(ellipse 66% 58% at 50% 18%, #17496a, transparent),
+    var(--felt);
+  box-shadow:
+    inset 0 0 0 3px var(--line),
+    inset 0 -32px 64px #04101a99,
+    0 12px 0 var(--shadow-deep);
+  transition: box-shadow 0.3s ease;
+}
+/* A full table: smaller cards and a wider ring, so seven seats still fit side by side. */
+.bj-felt[data-crowded='true'] {
+  --card-w: clamp(30px, 2.2cqw + 14px, 42px);
+  --ring-x: 45%;
+  --ring-y: 30%;
+  aspect-ratio: 16 / 10;
+}
+.bj-felt[data-crowded='true'] .bj-seat {
+  gap: 4px;
+}
+.bj-felt[data-crowded='true'] .bj-nameplate {
+  max-width: 118px;
+}
+.bj-felt[data-crowded='true'] .bj-nameplate strong {
+  font-size: 12px;
+}
+.bj-felt[data-crowded='true'] .bj-nameplate {
+  padding: 4px 9px 4px 4px;
+}
+.bj-felt[data-crowded='true'] .bj-nameplate .avatar {
+  width: 24px;
+  height: 24px;
+}
+/* Your turn: the rim lights up gold, exactly like the Bomb Party table. */
+.bj[data-your-turn='true'] .bj-felt {
+  box-shadow:
+    inset 0 0 0 3px var(--sun),
+    inset 0 0 22px #ffc43d2e,
+    inset 0 -32px 64px #04101a99,
+    0 12px 0 var(--shadow-deep);
+}
+
+/* Dealer's shoe, where every card comes from. */
+.bj-shoe {
+  position: absolute;
+  top: 13%;
+  right: 12%;
+  display: grid;
+  gap: 3px;
+  padding: 7px 6px;
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line),
+    0 4px 0 var(--shadow-deep);
+  rotate: -8deg;
+}
+.bj-shoe span {
+  width: 26px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.bj-shoe span:first-child {
+  background: var(--sky);
+}
+
+.bj-dealer {
+  position: absolute;
+  left: 50%;
+  top: 11%;
   display: grid;
   justify-items: center;
-  min-height: 160px;
+  gap: 8px;
+  translate: -50% 0;
 }
-.blackjack-seat-label {
+.bj-dealer-name {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  color: #f6e5b4;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line),
+    0 4px 0 var(--shadow-deep);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.blackjack-seat-label strong {
-  font-family: Georgia, serif;
-  font-size: 18px;
-  letter-spacing: 0.02em;
-}
-.blackjack-seat-label span {
+.bj-dealer-name b {
   display: grid;
   place-items: center;
-  min-width: 30px;
-  height: 30px;
-  border: 1px solid #d6b55e;
-  border-radius: 50%;
-  background: #082a22;
-  font-weight: 900;
+  min-width: 24px;
+  height: 24px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--text);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
-.blackjack-rule-arc {
+.bj-house-rules {
+  position: absolute;
+  left: 50%;
+  top: 45%;
   display: flex;
-  justify-content: center;
-  gap: 28px;
-  margin: 3px auto 24px;
-  color: #dbc277;
-  font-family: Georgia, serif;
-  font-size: 11px;
-  letter-spacing: 0.09em;
+  gap: 18px;
+  margin: 0;
+  color: #ffffff30;
+  font-size: clamp(9px, 1.4cqw, 12px);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  translate: -50% 0;
+  pointer-events: none;
 }
-.blackjack-player-grid {
+
+/* Seats */
+.bj-seats {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bj-seat {
+  position: absolute;
+  left: calc(50% + var(--ring-x) * var(--seat-cos));
+  top: calc(50% + var(--ring-y) * var(--seat-sin));
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  align-items: stretch;
+  justify-items: center;
+  gap: 6px;
+  width: max-content;
+  translate: -50% -72%;
 }
-.blackjack-player-spot {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid #d1b35c4d;
-  border-radius: 18px;
-  background: #042d25cc;
-  box-shadow: 0 6px 16px #001a14aa;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
+/* Crowded tables let seats overlap a little; the seats that matter stay on top. */
+.bj-seat.is-you {
+  z-index: 2;
 }
-.blackjack-player-spot.is-active {
-  border-color: #f2d06f;
-  box-shadow:
-    0 0 0 3px #f2d06f26,
-    0 7px 20px #001a14cc;
-  transform: translateY(-3px);
+.bj-seat.is-active {
+  z-index: 3;
 }
-.blackjack-player-spot.is-you {
-  background: #073d31e8;
+.bj-seat-hands {
+  position: relative;
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  min-height: calc(var(--card-w) * 1.4);
 }
-.blackjack-player-name {
+.bj-nameplate {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-width: 0;
-  padding-bottom: 9px;
-  border-bottom: 1px solid #cbae5f2b;
+  gap: 8px;
+  max-width: 168px;
+  padding: 5px 12px 5px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line),
+    0 4px 0 var(--shadow-deep);
+  transition:
+    box-shadow 0.2s ease,
+    translate 0.2s var(--pop);
 }
-.blackjack-player-name .avatar {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
+.bj-seat.is-you .bj-nameplate {
+  box-shadow:
+    inset 0 0 0 2px var(--brand),
+    0 4px 0 var(--brand-shadow);
+}
+.bj-seat.is-active .bj-nameplate {
+  translate: 0 -3px;
+  box-shadow:
+    inset 0 0 0 2px var(--sun),
+    0 6px 0 var(--sun-shadow);
+}
+.bj-nameplate .avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
+  box-shadow: none;
 }
-.blackjack-player-name > span {
+/* The shared avatar draws at a fixed 36px, which the seat's smaller disc would clip. */
+.bj-nameplate .avatar svg {
+  width: 74%;
+  height: 74%;
+}
+.bj-nameplate > span {
   display: grid;
   min-width: 0;
 }
-.blackjack-player-name strong {
+.bj-nameplate strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
 }
-.blackjack-player-name small {
-  color: #e1c878;
+.bj-nameplate small {
+  color: var(--sun);
   font-size: 11px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
-.blackjack-hands {
+
+/* Hands */
+.bj-hand {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 14px;
+  transition: background-color 0.2s ease;
+}
+.bj-hand.is-active {
+  background: #ffc43d17;
+}
+.bj-hand.is-active .bj-cards {
+  filter: drop-shadow(0 0 10px #ffc43d5c);
+}
+.bj-hand-meta {
   display: flex;
-  align-items: start;
-  justify-content: center;
-  gap: 7px;
-  min-height: 118px;
-  padding-top: 12px;
-}
-.blackjack-hand {
-  min-width: 64px;
-  text-align: center;
-}
-.blackjack-hand.is-active .blackjack-card-fan {
-  filter: drop-shadow(0 0 6px #edcf6a);
-}
-.blackjack-hand-meta {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  margin-top: 5px;
+  gap: 5px;
 }
-.blackjack-hand-meta > span:first-child {
+.bj-value {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding-inline: 6px;
+  border-radius: 999px;
+  color: var(--text);
+  background: #00000059;
+  font-size: 12px;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
-.blackjack-hand-meta small {
+.bj-value.is-soft {
+  color: var(--sky);
+}
+.bj-hand-bet {
   display: grid;
   place-items: center;
   min-width: 22px;
   height: 22px;
-  border: 3px dashed #f4ede0;
-  border-radius: 50%;
-  color: #160a0d;
-  background: #d94955;
-  font-size: 9px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--sun);
+  font-size: 11px;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
 }
-.blackjack-card-fan {
+.bj-outcome {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  z-index: 3;
+  padding: 5px 11px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--coral);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  translate: -50% -50%;
+  box-shadow: 0 4px 0 var(--coral-shadow);
+}
+.bj-outcome.is-win {
+  background: var(--mint);
+  box-shadow: 0 4px 0 var(--mint-shadow);
+}
+.bj-outcome.is-blackjack {
+  background: var(--sun);
+  box-shadow: 0 4px 0 var(--sun-shadow);
+}
+.bj-outcome.is-push {
+  background: var(--sky);
+  box-shadow: 0 4px 0 var(--sky-shadow);
+}
+
+/* Cards */
+.bj-cards {
   display: flex;
   justify-content: center;
-  min-width: 64px;
-  min-height: 88px;
+  min-width: var(--card-w);
+  min-height: calc(var(--card-w) * 1.4);
+  perspective: 700px;
 }
-.blackjack-card {
-  position: relative;
-  flex: 0 0 62px;
-  width: 62px;
-  height: 86px;
-  margin-left: -38px;
-  border: 2px solid #e4ddce;
-  border-radius: 8px;
-  color: #15110d;
-  background: #fffaf0;
-  box-shadow: 0 5px 10px #001a14aa;
-  overflow: hidden;
+.bj-card {
+  flex: none;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 1.4);
+  /* Overlapped just enough that every corner index stays readable. */
+  margin-left: calc(var(--card-w) * -0.36);
   transform-origin: 50% 100%;
 }
-.blackjack-card:first-child {
+.bj-card:first-child {
   margin-left: 0;
 }
-.blackjack-card.is-red {
-  color: #a91d2f;
+.bj-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
 }
-.blackjack-card-corner {
+.bj-card-face,
+.bj-card-back {
   position: absolute;
-  top: 5px;
-  left: 6px;
-  display: grid;
-  justify-items: center;
-  line-height: 0.9;
-  font-family: Georgia, serif;
-  font-size: 16px;
-  font-weight: 900;
+  inset: 0;
+  border-radius: 8px;
+  backface-visibility: hidden;
+  box-shadow: 0 5px 12px #02060c80;
+  overflow: hidden;
 }
-.blackjack-card-corner small {
-  font-size: 12px;
-}
-.blackjack-card-suit {
+.bj-card-face {
   display: grid;
   place-items: center;
-  height: 100%;
-  padding-top: 10px;
-  font-family: Georgia, serif;
-  font-size: 29px;
+  color: var(--ink);
+  background: #fdfbf5;
+  box-shadow:
+    inset 0 0 0 2px #ffffff,
+    0 5px 12px #02060c80;
+  font-weight: 900;
+  line-height: 1;
 }
-.blackjack-card.is-hidden {
-  padding: 3px;
-  border-color: #d7c07a;
-  background: #f4ebd4;
+.bj-card-face.is-red {
+  color: #d92d44;
 }
-.blackjack-card.is-hidden img {
+.bj-card-index {
+  position: absolute;
+  top: 6%;
+  left: 8%;
+  display: grid;
+  justify-items: center;
+  line-height: 0.98;
+  font-size: calc(var(--card-w) * 0.3);
+  letter-spacing: -0.05em;
+}
+.bj-card-index span {
+  font-size: calc(var(--card-w) * 0.23);
+}
+.bj-card-pip {
+  margin-top: 12%;
+  font-size: calc(var(--card-w) * 0.44);
+  opacity: 0.88;
+}
+.bj-card-back {
+  rotate: y 180deg;
+  background: var(--surface-2);
+}
+.bj-card-back img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 5px;
-}
-.blackjack-side-results {
-  display: grid;
-  gap: 4px;
-  min-height: 16px;
-  color: #f0d27a;
-  font-size: 10px;
-  font-weight: 800;
-  text-align: center;
-}
-.blackjack-sitting-out {
-  align-self: center;
-  color: #aac6bb;
-  font-size: 12px;
-}
-.blackjack-outcome {
-  flex-basis: 100%;
-  width: max-content;
-  margin: 2px auto 0;
-  padding: 3px 7px;
-  border-radius: 999px;
-  color: #fff;
-  background: #71192c;
-  font-size: 9px;
-  font-weight: 900;
-}
-.blackjack-outcome.is-win,
-.blackjack-outcome.is-blackjack {
-  color: #1b1203;
-  background: #e5c25f;
-}
-.blackjack-outcome.is-push {
-  color: #07231d;
-  background: #8ccbb7;
-}
-.blackjack-controls {
-  min-height: 126px;
-  padding: 18px 24px 22px;
-  border-top: 1px solid #b8974e66;
-  background: #071d1a;
-}
-.blackjack-betting-panel,
-.blackjack-action-panel {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 20px;
-}
-.blackjack-bankroll,
-.blackjack-action-panel > div:first-child,
-.blackjack-rebuy-panel > div {
-  display: grid;
-  gap: 4px;
-}
-.blackjack-bankroll span,
-.blackjack-action-panel > div:first-child span,
-.blackjack-rebuy-panel span {
-  color: #95b8aa;
-  font-size: 12px;
-}
-.blackjack-bankroll strong,
-.blackjack-action-panel > div:first-child strong,
-.blackjack-rebuy-panel strong {
-  color: #f1d176;
-  font-size: 17px;
-}
-.blackjack-bet-fields {
-  display: flex;
-  flex: 1;
-  gap: 10px;
-}
-.blackjack-bet-fields label {
-  display: grid;
-  flex: 1;
-  gap: 5px;
-  color: #b8cec5;
-  font-size: 11px;
-  font-weight: 800;
-}
-.blackjack-bet-fields input {
-  width: 100%;
-  min-height: 42px;
-  padding: 8px 10px;
-  border: 1px solid #4e6c61;
-  border-radius: 10px;
-  color: #fff9ea;
-  background: #02120f;
-}
-.blackjack-bet-actions {
-  display: grid;
-  gap: 7px;
-  justify-items: center;
-}
-.blackjack-place-bet,
-.blackjack-rebuy {
-  color: #160a0d;
-  background: #e1bd5c;
-  --shadow: #8f6821;
-}
-.blackjack-actions {
-  display: flex;
-  gap: 9px;
-}
-.blackjack-action {
-  min-width: 100px;
-  min-height: 48px;
-  padding: 10px 18px;
-  border: 1px solid #d1b35966;
-  border-radius: 12px;
-  color: #fff7e5;
-  background: #49101e;
-  font-weight: 900;
-  box-shadow: 0 4px 0 #21070e;
-}
-.blackjack-action:hover:not(:disabled) {
-  background: #71192c;
-  transform: translateY(-1px);
-}
-.blackjack-action:active:not(:disabled) {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 #21070e;
-}
-.blackjack-action:disabled {
-  opacity: 0.38;
-}
-.blackjack-action.is-hit,
-.blackjack-action.is-stand {
-  color: #160a0d;
-  background: #dfbd62;
-  box-shadow: 0 4px 0 #83621d;
-}
-.blackjack-locked-bet,
-.blackjack-table-message,
-.blackjack-round-summary {
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  margin: 0;
-  color: #9bb9ae;
-  text-align: center;
-}
-.blackjack-locked-bet strong,
-.blackjack-round-summary > strong {
-  color: #f0d078;
-}
-.blackjack-round-summary > div {
-  display: flex;
-  gap: 7px;
-}
-.blackjack-rebuy-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-}
-.blackjack-notice {
-  margin: 12px 0 0;
-}
-.blackjack-chip-count {
-  color: #d9b956;
 }
 
+/* Bet spots: tap to raise, right-click to take back. */
+/*
+ * The betting circles sit over the space the cards will land in, rather than taking a
+ * row of their own. The seat is then exactly as tall with chips down as with a hand
+ * dealt, so nothing jumps when bets lock. Side bets sit behind the main circle, toward
+ * the dealer, the way they are printed on a real layout.
+ */
+.bj-spots {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  /* Clearance for the main circle's stack, which grows up toward the side bets. */
+  gap: 20px;
+  translate: -50% 0;
+}
+/* Once locked there is nothing to aim at, so the wagers sit together in one row. */
+.bj-spots.is-locked {
+  grid-auto-flow: column;
+  align-items: end;
+  gap: 8px;
+}
+.bj-side-spots {
+  display: grid;
+  justify-items: center;
+  /* Headroom for the chip stacks, which grow up out of these small circles. */
+  gap: 15px;
+  padding: 6px 10px 7px;
+  border-radius: 16px;
+  background: #ffffff0a;
+  box-shadow: inset 0 0 0 1px #ffffff1f;
+}
+.bj-side-spots > div {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.bj-side-caption {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.bj-spot-slot {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+}
+.bj-spot-caption {
+  display: grid;
+  justify-items: center;
+  color: var(--text);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.bj-spot-slot.is-side .bj-spot-caption {
+  color: var(--muted);
+}
+.bj-spot-caption b {
+  color: var(--mint);
+  font-size: 8px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Quick amounts on hover, sized off what you can actually bet. Clickable, so unlike
+   the paytable it takes pointer events and bridges the gap down to its circle. */
+.bj-quick-bets {
+  position: absolute;
+  /* Beside the circle, not above it: the side-bet cluster already sits above. */
+  bottom: -4px;
+  left: calc(100% + 12px);
+  z-index: 7;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line),
+    0 6px 0 var(--shadow-deep),
+    0 16px 30px #020a1299;
+  opacity: 0;
+  translate: -6px 0;
+  scale: 0.94;
+  transform-origin: 0 50%;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    translate 0.2s var(--pop),
+    scale 0.2s var(--pop);
+}
+/* Keeps hover alive while the pointer crosses the gap to the panel. */
+.bj-quick-bets::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 100%;
+  width: 14px;
+  height: 100%;
+}
+.bj-spot-slot:hover .bj-quick-bets,
+.bj-spot-slot:focus-within .bj-quick-bets {
+  opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  pointer-events: auto;
+}
+.bj-quick-bets > strong {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bj-quick-bets > div {
+  display: flex;
+  gap: 6px;
+}
+.bj-quick-bets button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 0;
+  padding: 7px 10px;
+  border-radius: 11px;
+  background: var(--surface-2);
+  font-size: 14px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 3px 0 var(--shadow-deep);
+  transition:
+    transform 0.12s var(--pop),
+    background-color 0.12s ease;
+}
+.bj-quick-bets button:hover {
+  transform: translateY(-2px);
+  background: var(--line);
+}
+.bj-quick-bets button:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--shadow-deep);
+}
+.bj-quick-bets button.is-current {
+  color: var(--ink);
+  background: var(--sun);
+  box-shadow: 0 3px 0 var(--sun-shadow);
+}
+.bj-quick-bets::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  box-shadow: inset 2px -2px 0 var(--line);
+  rotate: 45deg;
+  translate: -5px -50%;
+}
+
+/* Paytable on hover or keyboard focus, floated above its circle. */
+.bj-paytable {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow:
+    inset 0 0 0 2px var(--line),
+    0 6px 0 var(--shadow-deep),
+    0 16px 30px #020a1299;
+  opacity: 0;
+  translate: -50% 6px;
+  scale: 0.94;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    translate 0.2s var(--pop),
+    scale 0.2s var(--pop);
+}
+.bj-spot-slot:hover .bj-paytable,
+.bj-spot-slot:focus-within .bj-paytable {
+  opacity: 1;
+  translate: -50% 0;
+  scale: 1;
+}
+.bj-paytable strong {
+  color: var(--text);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bj-paytable dl {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+}
+.bj-paytable dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bj-paytable dt {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.bj-paytable dd {
+  margin: 0;
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+/* The little arrow pointing back down at the circle. */
+.bj-paytable::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  box-shadow: inset -2px -2px 0 var(--line);
+  rotate: 45deg;
+  translate: -50% -6px;
+}
+
+/* Take one step back off a circle; right-click does the same but nothing advertises it. */
+.bj-spot-take {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 0 var(--shadow-deep);
+}
+.bj-spot-take:hover {
+  background: var(--coral);
+}
+/* The betting circle painted on the felt; chips pile up inside it. */
+.bj-spot {
+  --chip: 50px;
+  position: relative;
+  display: grid;
+  place-items: end center;
+  width: var(--chip);
+  height: var(--chip);
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: #ffffff0a;
+  /* Dashed while empty: reads as a place to put something, not as a button. */
+  box-shadow: inset 0 0 0 2px #ffffff2e;
+  outline: 2px dashed #ffffff3d;
+  outline-offset: -7px;
+  transition:
+    transform 0.15s var(--pop),
+    box-shadow 0.15s ease,
+    outline-color 0.15s ease;
+}
+.bj-spot.is-side {
+  --chip: 34px;
+  outline-offset: -5px;
+}
+.bj-spot.has-chips {
+  outline-color: transparent;
+}
+.bj-spot:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 2px var(--sun);
+  outline-color: var(--sun);
+}
+.bj-spot:active:not(:disabled) {
+  transform: translateY(1px) scale(0.97);
+  transition-duration: 0.06s;
+}
+.bj-spot:disabled {
+  opacity: 0.35;
+}
+.bj-spot.is-locked {
+  cursor: default;
+}
+/* What an empty circle offers: the step one tap would put down. */
+.bj-spot-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: calc(var(--chip) * 0.28);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.bj-chip-stack {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  width: calc(var(--chip) - 8px);
+  height: calc(var(--chip) - 8px);
+  translate: -50% 0;
+}
+/* One chip: a coloured disc with the classic white edge ring. */
+.bj-chip {
+  position: absolute;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--chip-face);
+  box-shadow:
+    inset 0 0 0 2px #ffffffd9,
+    inset 0 0 0 4px var(--chip-face),
+    inset 0 -3px 0 #00000026,
+    0 1px 2px #02060c99;
+  font-size: calc(var(--chip) * 0.3);
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.bj-chip.is-mint {
+  --chip-face: var(--mint);
+}
+.bj-chip.is-sun {
+  --chip-face: var(--sun);
+}
+.bj-chip.is-coral {
+  --chip-face: var(--coral);
+}
+.bj-chip.is-sky {
+  --chip-face: var(--sky);
+}
+.bj-side-win {
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--mint);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+/* Dock: one row of controls, nothing else. */
+.bj-dock {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-height: 108px;
+  padding: 18px 24px 24px;
+  border-top: 2px solid var(--line);
+  background: var(--surface-2);
+}
+.bj-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.bj-action {
+  min-width: 116px;
+}
+.bj-action.is-hit {
+  color: var(--ink);
+  background: var(--mint);
+  --shadow: var(--mint-shadow);
+}
+.bj-action.is-stand {
+  color: var(--ink);
+  background: var(--coral);
+  --shadow: var(--coral-shadow);
+}
+.bj-action.is-double,
+.bj-action.is-split {
+  color: var(--text);
+  background: var(--surface);
+  --shadow: var(--shadow-deep);
+}
+.bj-action.is-double:hover:not(:disabled),
+.bj-action.is-split:hover:not(:disabled) {
+  background: var(--line);
+}
+.bj-deal {
+  min-width: 190px;
+}
+.bj-hint,
+.bj-wait {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.bj-wait span {
+  color: var(--sun);
+}
+.bj-hint span {
+  margin-left: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #ffffff12;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.bj-net {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  margin: 0;
+}
+.bj-net span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.bj-net strong {
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.bj-net.is-up strong {
+  color: var(--mint);
+}
+.bj-net.is-down strong {
+  color: var(--coral);
+}
+.bj-net.is-even strong {
+  color: var(--muted);
+}
+.bj-error {
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--coral);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* Results */
 .blackjack-results {
   padding: 12px 8px 6px;
   text-align: center;
@@ -3742,16 +4232,14 @@ input[aria-invalid='true'] {
 .blackjack-results-mark {
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 64px;
+  height: 64px;
   margin: 0 auto 18px;
-  border: 2px solid #d2b15a;
   border-radius: 50%;
-  color: #f2d47a;
-  background: #60172a;
-  font-family: Georgia, serif;
+  color: var(--ink);
+  background: var(--sun);
   font-size: 30px;
-  box-shadow: 0 5px 0 #270810;
+  box-shadow: 0 5px 0 var(--sun-shadow);
 }
 .blackjack-results > p {
   color: var(--muted);
@@ -3770,17 +4258,17 @@ input[aria-invalid='true'] {
   gap: 12px;
   min-height: 68px;
   padding: 10px 14px;
-  border: 1px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: 16px;
-  background: #0a1d27;
+  background: var(--surface-2);
   text-align: left;
 }
 .blackjack-results li.is-winner {
-  border-color: #d6b458;
-  background: linear-gradient(90deg, #5c1526, #24131b);
+  border-color: var(--sun);
+  background: linear-gradient(90deg, #ffc43d24, var(--surface-2));
 }
 .blackjack-results li.is-you {
-  box-shadow: 0 0 0 2px #55a8f266;
+  box-shadow: 0 0 0 2px var(--brand);
 }
 .blackjack-results li .avatar {
   width: 42px;
@@ -3788,8 +4276,7 @@ input[aria-invalid='true'] {
   border-radius: 50%;
 }
 .blackjack-rank {
-  color: #d6b75f;
-  font-family: Georgia, serif;
+  color: var(--sun);
   font-size: 22px;
   font-weight: 900;
   text-align: center;
@@ -3798,36 +4285,39 @@ input[aria-invalid='true'] {
   display: grid;
 }
 .blackjack-result-player small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 11px;
 }
 .blackjack-final-chips {
-  color: #ead17e;
+  color: var(--sun);
   white-space: nowrap;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.blackjack-chip-count {
+  color: var(--sun);
 }
 
 @media (max-width: 900px) {
   .blackjack-settings-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .blackjack-player-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .bj-felt {
+    --ring-x: 34%;
+    aspect-ratio: 13 / 10;
   }
-  .blackjack-betting-panel,
-  .blackjack-action-panel {
-    align-items: stretch;
-    flex-direction: column;
+  .bj-nameplate {
+    max-width: 140px;
   }
-  .blackjack-bet-actions {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+  /* Too narrow for a fourth column: the chip total takes its own row. */
+  .blackjack-results li {
+    grid-template-columns: 28px 36px minmax(0, 1fr);
   }
-  .blackjack-actions {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .blackjack-action {
-    min-width: 0;
+  .blackjack-final-chips {
+    grid-column: 3;
   }
 }
 
@@ -3840,43 +4330,49 @@ input[aria-invalid='true'] {
     grid-template-columns: 1fr;
     padding: 14px;
   }
-  .blackjack-table {
-    min-height: 560px;
-    padding: 22px 14px 28px;
+  .bj-bar {
+    padding: 14px 16px;
   }
-  .blackjack-rule-arc {
-    gap: 10px;
-    font-size: 8px;
-    text-align: center;
+  .bj-felt {
+    --ring-x: 29%;
+    --ring-y: 34%;
+    margin: 18px auto 28px;
+    aspect-ratio: 10 / 12;
+    border-radius: 40% 40% 34% 34% / 26% 26% 48% 48%;
   }
-  .blackjack-player-grid {
-    gap: 8px;
+  .bj-shoe {
+    top: 7%;
+    right: 8%;
   }
-  .blackjack-player-spot {
-    padding: 9px;
+  .bj-dealer {
+    top: 11%;
   }
-  .blackjack-card {
-    flex-basis: 50px;
-    width: 50px;
-    height: 70px;
-    margin-left: -32px;
+  .bj-house-rules {
+    display: none;
   }
-  .blackjack-card-fan {
-    min-width: 50px;
-    min-height: 72px;
+  .bj-nameplate {
+    max-width: 112px;
   }
-  .blackjack-hands {
-    min-height: 98px;
+  .bj-nameplate {
+    padding: 4px 9px 4px 4px;
   }
-  .blackjack-bet-fields {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .bj-nameplate .avatar {
+    width: 24px;
+    height: 24px;
   }
-  .blackjack-controls {
-    padding-inline: 14px;
+  .bj-spot {
+    --chip: 44px;
   }
-  .blackjack-actions {
-    grid-template-columns: repeat(2, 1fr);
+  .bj-spot.is-side {
+    --chip: 30px;
+  }
+  .bj-action,
+  .bj-deal {
+    min-width: 0;
+    flex: 1 1 130px;
+  }
+  .bj-dock {
+    padding: 14px 14px 18px;
   }
   .blackjack-results li {
     grid-template-columns: 28px 36px minmax(0, 1fr);

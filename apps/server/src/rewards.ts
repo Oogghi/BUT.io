@@ -87,3 +87,32 @@ export async function recordAuthoritativeMatch(
   }
   return rewards;
 }
+
+export type RebuySpendError =
+  'rebuy-unavailable' | 'rebuy-insufficient-currency';
+
+/** Atomically deducts global currency for one server-approved Blackjack rebuy. */
+export async function spendBlackjackRebuy(
+  userId: string,
+  matchId: string,
+  rebuyNumber: number,
+  cost: number,
+): Promise<{ coins: number } | { error: RebuySpendError }> {
+  if (!admin) return { error: 'rebuy-unavailable' };
+  const { data, error } = await admin.rpc('spend_blackjack_rebuy', {
+    p_user_id: userId,
+    p_match_id: matchId,
+    p_rebuy_number: rebuyNumber,
+    p_cost: cost,
+  });
+  if (error) {
+    if (error.message === 'not-enough-coins')
+      return { error: 'rebuy-insufficient-currency' };
+    console.error('Unable to spend Blackjack rebuy currency:', error.message);
+    return { error: 'rebuy-unavailable' };
+  }
+  const coins = (data as { coins?: unknown } | null)?.coins;
+  return typeof coins === 'number' && Number.isFinite(coins)
+    ? { coins }
+    : { error: 'rebuy-unavailable' };
+}

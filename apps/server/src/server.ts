@@ -3,6 +3,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import { FoundationRoom } from './rooms/FoundationRoom.js';
 import { BombPartyLobbyRoom } from './rooms/BombPartyLobbyRoom.js';
 import { TankArenaRoom } from './rooms/TankArenaRoom.js';
+import { BlackjackRoom } from './rooms/BlackjackRoom.js';
 
 export function createServer() {
   return defineServer({
@@ -11,6 +12,7 @@ export function createServer() {
       foundation: defineRoom(FoundationRoom),
       'bomb-party': defineRoom(BombPartyLobbyRoom),
       'tank-arena': defineRoom(TankArenaRoom),
+      'blackjack-party': defineRoom(BlackjackRoom),
     },
   });
 }

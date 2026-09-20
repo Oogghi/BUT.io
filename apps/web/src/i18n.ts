@@ -7,7 +7,7 @@ import type {
   TankId,
   TankTeamMode,
 } from '@but/tank-arena';
-type BlackjackActionError = string;
+import type { BlackjackActionError } from '@but/blackjack-party';
 
 const en = {
   bp: {
@@ -95,7 +95,17 @@ const en = {
     hiddenCard: 'Hidden dealer card',
     chips: (amount: number) => `${amount} chips`,
     mainBet: 'Main bet',
-    placeBets: 'Place bets',
+    placeBets: 'Deal',
+    betSpot: 'Your bet',
+    pairsShort: 'Pairs',
+    tapToBet: 'Tap a circle to add chips',
+    betLimits: (min: number, max: number) => `Min ${min} · Max ${max}`,
+    pays: (odds: number) => `up to ${odds}:1`,
+    clearBet: 'Clear',
+    quickBet: 'Quick bet',
+    rebet: (amount: number) => `Rebet ${amount}`,
+    takeBack: (name: string) => `Take chips off ${name}`,
+    spotHint: (name: string, step: number) => `${name} — tap to add ${step}`,
     sitOut: 'Sit out this round',
     betsLocked: 'Bets locked',
     waitingBets: 'Waiting for the other players…',
@@ -409,7 +419,8 @@ const en = {
   playInstead: 'Play instead',
   spectating: 'Spectating',
   spectatingNote: 'You’re watching this round.',
-  requirement: (min: number) => `${min}+ players. Everyone ready.`,
+  requirement: (min: number) =>
+    min > 1 ? `${min}+ players. Everyone ready.` : 'Everyone ready.',
   startSession: 'Start session',
   hostStarts: 'The host starts the session.',
   hereWeGo: 'Here we go.',
@@ -605,7 +616,17 @@ const fr: typeof en = {
     hiddenCard: 'Carte cachée du croupier',
     chips: (amount) => `${amount} jetons`,
     mainBet: 'Mise principale',
-    placeBets: 'Placer les mises',
+    placeBets: 'Distribuer',
+    betSpot: 'Ta mise',
+    pairsShort: 'Paires',
+    tapToBet: 'Touche un cercle pour ajouter des jetons',
+    betLimits: (min, max) => `Min ${min} · Max ${max}`,
+    pays: (odds) => `jusqu’à ${odds}:1`,
+    clearBet: 'Effacer',
+    quickBet: 'Mise rapide',
+    rebet: (amount) => `Remiser ${amount}`,
+    takeBack: (name) => `Retirer des jetons de ${name}`,
+    spotHint: (name, step) => `${name} — touche pour ajouter ${step}`,
     sitOut: 'Passer cette manche',
     betsLocked: 'Mises verrouillées',
     waitingBets: 'En attente des autres joueurs…',
@@ -926,7 +947,10 @@ const fr: typeof en = {
   playInstead: 'Jouer plutôt',
   spectating: 'Spectateur',
   spectatingNote: 'Tu regardes cette partie.',
-  requirement: (min) => `${min} joueurs minimum. Tout le monde prêt.`,
+  requirement: (min) =>
+    min > 1
+      ? `${min} joueurs minimum. Tout le monde prêt.`
+      : 'Tout le monde prêt.',
   startSession: 'Lancer la partie',
   hostStarts: 'L’hôte lance la partie.',
   hereWeGo: 'C’est parti !',
