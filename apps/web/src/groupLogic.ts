@@ -1,7 +1,5 @@
 import type { GroupLobbyInviteView } from './supabaseData';
 
-export const GROUP_CODE_LENGTH = 6;
-
 export function isGroupCode(value: string) {
   return /^[A-Z0-9]{6}$/.test(value.trim().toUpperCase());
 }

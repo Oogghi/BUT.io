@@ -33,12 +33,11 @@ import {
   type AuthMode,
   type CommunitySection,
 } from './CommunityView';
-import type { GameId } from './supabaseData';
 import { loadSettings, type AppSettings } from './settings';
 import { SettingsPanel } from './SettingsPanel';
 import { LockerView } from './LockerView';
 import { CoinIndicator, RewardToast, type RewardNotice } from './Rewards';
-import { getAccessToken } from './supabaseData';
+import { getAccessToken, parseGameId } from './supabaseData';
 
 /** Join a lobby by invite code, or create a new one for a game. */
 export type Destination = { code: string } | { gameId: string };
@@ -217,7 +216,7 @@ export default function App() {
   ) {
     const next = await session.refresh().catch(() => null);
     const group = next?.group;
-    const gameId = supportedGameId(
+    const gameId = parseGameId(
       'gameId' in destination ? destination.gameId : joined.state.gameId,
     );
     if (!group || group.leaderId !== session.account?.userId || !gameId) return;
@@ -391,14 +390,6 @@ export default function App() {
       />
     </MotionConfig>
   );
-}
-
-function supportedGameId(value: string | undefined): GameId | null {
-  return value === 'bomb-party' ||
-    value === 'tank-arena' ||
-    value === 'blackjack-party'
-    ? value
-    : null;
 }
 
 function LobbyRoute({

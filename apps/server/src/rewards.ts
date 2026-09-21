@@ -16,8 +16,6 @@ const admin =
       })
     : null;
 
-export const rewardsConfigured = Boolean(admin);
-
 /** Returns a real account id for a valid signed-in token; guests are ignored. */
 export async function verifiedUserId(
   accessToken: unknown,

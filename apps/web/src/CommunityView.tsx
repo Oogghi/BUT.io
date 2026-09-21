@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { Icon } from './Icon';
 import { GroupFeature } from './GroupFeature';
 import { loadProfile } from './profile';

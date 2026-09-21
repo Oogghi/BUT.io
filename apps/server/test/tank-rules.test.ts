@@ -17,7 +17,6 @@ import {
   TANK_H,
   TANK_W,
   Terrain,
-  insideTank,
   jumpPreview,
   shellPreview,
   stepBallistic,

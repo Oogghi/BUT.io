@@ -14,13 +14,11 @@ export const tankTeamModes = {
     label: 'Free for all',
     minPlayers: tankArena.minPlayers,
     maxPlayers: tankArena.maxPlayers,
-    sizes: null,
   },
   teams: {
     label: 'Teams',
     minPlayers: tankArena.minPlayers,
     maxPlayers: tankArena.maxPlayers,
-    sizes: null,
   },
 } as const satisfies Record<
   TankTeamMode,
@@ -28,11 +26,9 @@ export const tankTeamModes = {
     label: string;
     minPlayers: number;
     maxPlayers: number;
-    sizes: readonly number[] | null;
   }
 >;
 
-export const tankTeamModeIds = Object.keys(tankTeamModes) as TankTeamMode[];
 export const tankTeamCounts = [2, 3, 4] as const;
 
 export function isTankTeamMode(value: unknown): value is TankTeamMode {
@@ -574,14 +570,6 @@ export interface TankPlan {
   power: number;
   turn: number;
 }
-
-export type TankArenaSend = (
-  ...message:
-    | ['ready' | 'spectate', boolean]
-    | ['start' | 'return']
-    | ['tank', TankId]
-    | ['plan', TankPlan]
-) => void;
 
 export type PlanError =
   | 'not-playing'

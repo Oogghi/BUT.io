@@ -23,7 +23,6 @@ export const supabase =
     : null;
 
 export type GameId = 'bomb-party' | 'tank-arena' | 'blackjack-party';
-export type FriendshipStatus = 'pending' | 'accepted' | 'declined';
 export type LeaderboardMetric = 'wins' | 'winRate' | 'bestStreak' | 'kills';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
 
@@ -314,7 +313,7 @@ function metrics(value: unknown): Record<string, number> {
   );
 }
 
-function gameId(value: string): GameId | null {
+export function parseGameId(value: string): GameId | null {
   return value === 'bomb-party' ||
     value === 'tank-arena' ||
     value === 'blackjack-party'
@@ -335,7 +334,7 @@ function normalizeGroup(row: GroupRow, members: GroupMember[]): GroupView {
 function normalizeGroupLobbyInvite(
   row: GroupLobbyInviteRow,
 ): GroupLobbyInviteView | null {
-  const id = gameId(row.game_id);
+  const id = parseGameId(row.game_id);
   return id
     ? {
         id: row.id,
@@ -363,7 +362,7 @@ function emptyGameStats(gameId: GameId): GameStatsView {
 }
 
 function normalizeGameStats(row: GameStatsRow): GameStatsView | null {
-  const id = gameId(row.game_id);
+  const id = parseGameId(row.game_id);
   return id
     ? {
         userId: row.user_id,
@@ -387,7 +386,7 @@ function normalizeMatch(
   row: MatchHistoryRow,
   userId: string,
 ): RecentMatch | null {
-  const id = gameId(row.game_id);
+  const id = parseGameId(row.game_id);
   if (!id) return null;
   return {
     id: row.id,
