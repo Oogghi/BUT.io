@@ -40,9 +40,15 @@ export function useTestServer<State extends LobbyState>(roomName: string) {
     return room;
   }
 
-  async function create(name: string): Promise<LobbyRoom> {
+  async function create(
+    name: string,
+    extra: Partial<JoinOptions> = {},
+  ): Promise<LobbyRoom> {
     return opened(
-      await new Client(endpoint).create<State>(roomName, { displayName: name }),
+      await new Client(endpoint).create<State>(roomName, {
+        displayName: name,
+        ...extra,
+      }),
     );
   }
 

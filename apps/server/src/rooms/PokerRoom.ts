@@ -1,4 +1,5 @@
 import type { Client } from '@colyseus/core';
+import type { PokerMatchResult } from '@but/shared';
 import { schema, t } from '@colyseus/schema';
 import {
   defaultPokerSettings,
@@ -139,8 +140,37 @@ export class PokerRoom extends LobbyRoom<
     this.sync();
   }
 
-  protected buildMatchResult() {
-    return null;
+  protected buildMatchResult(
+    matchId: string,
+    playedAt: string,
+    endedAt: string,
+  ): PokerMatchResult | null {
+    const match = this.match;
+    if (!match || match.stage !== 'complete') return null;
+    const players = [...match.players.keys()].flatMap((sessionId) => {
+      const playerId = this.accountId(sessionId);
+      if (!playerId) return [];
+      return [
+        {
+          playerId,
+          outcome:
+            sessionId === match.winnerId ? ('win' as const) : ('loss' as const),
+          stats: {},
+        },
+      ];
+    });
+    return players.length
+      ? {
+          gameId: 'poker-party',
+          matchId,
+          playedAt,
+          durationSeconds: Math.max(
+            0,
+            (Date.parse(endedAt) - Date.parse(playedAt)) / 1000,
+          ),
+          players,
+        }
+      : null;
   }
 
   private handleSettings(client: Client, payload: unknown) {

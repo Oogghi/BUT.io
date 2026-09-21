@@ -1,5 +1,6 @@
 /** Game ids that currently emit stats. Keep this contract independent of game state. */
-export type StatsGameId = 'bomb-party' | 'tank-arena' | 'blackjack-party';
+export type StatsGameId =
+  'bomb-party' | 'tank-arena' | 'blackjack-party' | 'poker-party';
 
 export type MatchOutcome = 'win' | 'loss' | 'draw';
 
@@ -83,8 +84,14 @@ export type BlackjackMatchResult = MatchResult<
   BlackjackMatchStats
 >;
 
+/** Poker currently records match outcomes without game-specific counters. */
+export type PokerMatchResult = MatchResult<'poker-party', MatchStatCounters>;
+
 export type AnyMatchResult =
-  BombPartyMatchResult | TankArenaMatchResult | BlackjackMatchResult;
+  | BombPartyMatchResult
+  | TankArenaMatchResult
+  | BlackjackMatchResult
+  | PokerMatchResult;
 
 export function emptyBombPartyMatchStats(): BombPartyMatchStats {
   return { wordsPlayed: 0, wordsAccepted: 0, livesLost: 0 };

@@ -5,7 +5,8 @@ import {
   type MatchReward,
 } from '@but/shared';
 
-const url = process.env.SUPABASE_URL;
+// The URL is public; support the shared Render environment used by the web app.
+const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // This client is server-only. Never mirror the service-role key into apps/web.
@@ -15,6 +16,12 @@ const admin =
         auth: { autoRefreshToken: false, persistSession: false },
       })
     : null;
+
+if (!admin) {
+  console.warn(
+    'Match rewards disabled: configure SUPABASE_URL (or VITE_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY on the game server.',
+  );
+}
 
 /** Returns a real account id for a valid signed-in token; guests are ignored. */
 export async function verifiedUserId(
