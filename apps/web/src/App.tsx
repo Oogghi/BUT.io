@@ -37,6 +37,7 @@ import { loadSettings, type AppSettings } from './settings';
 import { SettingsPanel } from './SettingsPanel';
 import { LockerView } from './LockerView';
 import { CoinIndicator, RewardToast, type RewardNotice } from './Rewards';
+import { BackendStatus } from './BackendStatus';
 import { getAccessToken, parseGameId } from './supabaseData';
 
 /** Join a lobby by invite code, or create a new one for a game. */
@@ -286,6 +287,8 @@ export default function App() {
             but<span className="brand-suffix">.io</span>
           </Link>
           <div className="header-actions">
+            {/* Only on the menu: in a lobby the live connection already says it. */}
+            {location.pathname === '/' && <BackendStatus />}
             <GroupIndicator />
             <CoinIndicator />
           </div>

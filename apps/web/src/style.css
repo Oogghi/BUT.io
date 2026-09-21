@@ -222,6 +222,69 @@ h3 {
   width: 18px;
   height: 18px;
 }
+/* Game server health, on the menu: same pill as the coin count, coloured by state. */
+.backend-status {
+  --status: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in srgb, var(--status) 40%, transparent);
+  border-radius: 13px;
+  color: var(--status);
+  background: color-mix(in srgb, var(--status) 7%, transparent);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.backend-status.is-online {
+  --status: var(--mint);
+}
+.backend-status.is-waking {
+  --status: var(--sun);
+}
+.backend-status.is-offline {
+  --status: var(--coral);
+}
+.backend-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status) 25%, transparent);
+}
+/* Still booting: the dot breathes so the wait reads as progress, not as broken. */
+.backend-status.is-checking .backend-status-dot,
+.backend-status.is-waking .backend-status-dot {
+  animation: backend-pulse 1.2s ease-in-out infinite;
+}
+@keyframes backend-pulse {
+  50% {
+    opacity: 0.35;
+    scale: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .backend-status-dot {
+    animation: none !important;
+  }
+}
+/* A phone header has no room for the words; the dot stays, the label stays readable
+   to screen readers, and the tooltip still explains a slow start. */
+@media (max-width: 480px) {
+  .backend-status {
+    padding-inline: 11px;
+  }
+  .backend-status-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 .coin-indicator.is-guest {
   border-style: dashed;
   color: #f2cf72;

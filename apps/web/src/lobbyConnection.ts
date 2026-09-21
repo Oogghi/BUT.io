@@ -21,11 +21,15 @@ export type LobbyRoom = Room<
   BombPartyRoomState | TankArenaRoomState | BlackjackRoomState
 >;
 
-export const lobbyClient = new Client(
+const serverUrl: string =
   import.meta.env.VITE_COLYSEUS_URL ||
-    import.meta.env.VITE_SERVER_URL ||
-    'http://127.0.0.1:2567',
-);
+  import.meta.env.VITE_SERVER_URL ||
+  'http://127.0.0.1:2567';
+
+export const lobbyClient = new Client(serverUrl);
+
+/** The game server's HTTP origin, for health checks; the lobby URL may be ws(s)://. */
+export const serverHttpUrl = serverUrl.replace(/^ws/, 'http');
 
 /** Snapshot `stage`, `turn` or `turnId` changes that should clear a stale action error. */
 export function turnKey(state: LobbySnapshot) {

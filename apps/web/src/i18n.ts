@@ -151,6 +151,14 @@ const en = {
       'rebuy-insufficient-currency': 'You do not have enough global coins.',
     } satisfies Record<BlackjackActionError, string>,
   },
+  backend: {
+    checking: 'Connecting…',
+    waking: 'Server waking up',
+    online: 'Server online',
+    offline: 'Server offline',
+    wakingHint:
+      'The server sleeps when nobody is playing and takes about a minute to start.',
+  },
   skipToContent: 'Skip to content',
   homeLabel: 'BUT.io home',
   backHome: 'Back home',
@@ -676,6 +684,14 @@ const fr: typeof en = {
       'rebuy-unavailable': 'La recave n’a pas pu être effectuée.',
       'rebuy-insufficient-currency': 'Tu n’as pas assez de pièces globales.',
     },
+  },
+  backend: {
+    checking: 'Connexion…',
+    waking: 'Serveur en réveil',
+    online: 'Serveur en ligne',
+    offline: 'Serveur hors ligne',
+    wakingHint:
+      'Le serveur se met en veille sans joueurs et met environ une minute à démarrer.',
   },
   skipToContent: 'Aller au contenu',
   homeLabel: 'Accueil BUT.io',
