@@ -59,6 +59,10 @@ const en = {
     maxBet: 'Maximum bet',
     decks: 'Decks in shoe',
     blackjackPayout: 'Blackjack payout',
+    shuffle: 'Shuffle every round',
+    discardTray: (used: number, remaining: number) =>
+      `${used} cards played, ${remaining} left in the shoe`,
+    shoeLeft: 'in shoe',
     soft17: 'Dealer hits soft 17',
     allowDouble: 'Allow Double Down',
     allowSplit: 'Allow Split',
@@ -580,6 +584,10 @@ const fr: typeof en = {
     maxBet: 'Mise maximum',
     decks: 'Jeux dans le sabot',
     blackjackPayout: 'Gain du Blackjack',
+    shuffle: 'Mélanger à chaque manche',
+    discardTray: (used, remaining) =>
+      `${used} cartes jouées, ${remaining} restantes dans le sabot`,
+    shoeLeft: 'restantes',
     soft17: 'Le croupier tire sur 17 souple',
     allowDouble: 'Autoriser Doubler',
     allowSplit: 'Autoriser Séparer',

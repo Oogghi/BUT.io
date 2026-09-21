@@ -3460,6 +3460,61 @@ input[aria-invalid='true'] {
   background: var(--sky);
 }
 
+/* Discard tray: the cards this shoe has already spent, opposite the shoe itself. */
+.bj-discard {
+  position: absolute;
+  top: 13%;
+  left: 9%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.bj-discard-pile {
+  /* One step per card, so each one's rank stays readable above the next. */
+  --discard-step: 13px;
+  position: relative;
+  width: 34px;
+  height: calc(11 * var(--discard-step) + 20px);
+}
+/* Face down: the tray shows that cards are gone, never which ones. */
+.bj-discard-card {
+  position: absolute;
+  left: 0;
+  top: calc(var(--card-index) * var(--discard-step));
+  width: 34px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  /* A lit top edge and a shadow beneath it: without them the stacked backs merge
+     into one continuous strip of pattern. */
+  box-shadow:
+    inset 0 1px 0 #ffffff87,
+    inset 0 0 0 1px #02060c8f,
+    0 2px 3px #02060cb3;
+  overflow: hidden;
+}
+.bj-discard-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.bj-discard-count {
+  display: grid;
+  justify-items: center;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.bj-discard-count b {
+  color: var(--text);
+  font-size: 13px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
 .bj-dealer {
   position: absolute;
   left: 50%;
@@ -3497,20 +3552,17 @@ input[aria-invalid='true'] {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
+/* Printed on the felt under the dealer, where a real layout carries it. */
 .bj-house-rules {
-  position: absolute;
-  left: 50%;
-  top: 45%;
   display: flex;
   gap: 18px;
-  margin: 0;
+  margin: 2px 0 0;
   color: #ffffff30;
   font-size: clamp(9px, 1.4cqw, 12px);
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
-  translate: -50% 0;
   pointer-events: none;
 }
 
@@ -3545,6 +3597,15 @@ input[aria-invalid='true'] {
   align-items: end;
   gap: 10px;
   min-height: calc(var(--card-w) * 1.4);
+}
+/* Splitting can leave one seat holding several hands; shrink them so the row still fits. */
+.bj-seat-hands:has(.bj-hand:nth-child(3)) {
+  --card-w: clamp(32px, 2.8cqw + 16px, 46px);
+  gap: 6px;
+}
+.bj-seat-hands:has(.bj-hand:nth-child(5)) {
+  --card-w: clamp(26px, 2.2cqw + 12px, 36px);
+  gap: 4px;
 }
 .bj-nameplate {
   display: flex;

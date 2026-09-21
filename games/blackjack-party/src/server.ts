@@ -1,7 +1,6 @@
 import {
   blackjackParty,
   defaultBlackjackSettings,
-  type BlackjackAction,
   type BlackjackActionError,
   type BlackjackBet,
   type BlackjackHandState,
@@ -69,7 +68,7 @@ export function parseBlackjackSettings(
     ['minBet', 1, 100000],
     ['maxBet', 1, 100000],
     ['decks', 1, 8],
-    ['maxSplits', 0, 3],
+    ['maxSplits', 0, 6],
     ['minSideBet', 1, 10000],
     ['maxSideBet', 1, 10000],
     ['perfectPairMixedPayout', 1, 500],
@@ -89,6 +88,7 @@ export function parseBlackjackSettings(
     if (!integer(input[key], min, max)) return null;
   }
   for (const key of [
+    'shuffle',
     'dealerHitsSoft17',
     'allowDouble',
     'allowSplit',
@@ -111,15 +111,18 @@ export function parseBlackjackSettings(
   return input as unknown as BlackjackSettings;
 }
 
+/** What one card is worth, aces high before any softening. */
+function cardValue(rank: Rank) {
+  if (rank === 'A') return 11;
+  return ['10', 'J', 'Q', 'K'].includes(rank) ? 10 : Number(rank);
+}
+
 export function handValue(cards: readonly Card[]) {
   let value = 0;
   let aces = 0;
   for (const card of cards) {
-    if (card.rank === 'A') {
-      value += 11;
-      aces += 1;
-    } else if (['10', 'J', 'Q', 'K'].includes(card.rank)) value += 10;
-    else value += Number(card.rank);
+    value += cardValue(card.rank);
+    if (card.rank === 'A') aces += 1;
   }
   while (value > 21 && aces > 0) {
     value -= 10;
@@ -173,7 +176,7 @@ export function twentyOnePlusThree(
   return sameSuit ? 'flush' : 'loss';
 }
 
-function shuffledShoe(decks: number, random: () => number) {
+function buildShoe(decks: number, random: () => number) {
   const cards: Card[] = [];
   for (let deck = 0; deck < decks; deck += 1)
     for (const suit of SUITS)
@@ -237,7 +240,7 @@ export class BlackjackGame {
   deadline = 0;
   activePlayerId = '';
   activeHandIndex = 0;
-  dealerHoleHidden = true;
+  dealerHoleHidden = false;
   dealerValue = 0;
   winnerId = '';
   lastEvent = '';
@@ -254,14 +257,20 @@ export class BlackjackGame {
     private readonly random: () => number = Math.random,
     stackedCards?: readonly Card[],
   ) {
-    if (ids.length < 2 || ids.length > 7 || new Set(ids).size !== ids.length)
-      throw new Error('A Blackjack match needs 2–7 distinct players.');
+    if (
+      ids.length < blackjackParty.minPlayers ||
+      ids.length > blackjackParty.maxPlayers ||
+      new Set(ids).size !== ids.length
+    )
+      throw new Error(
+        `A Blackjack match needs ${blackjackParty.minPlayers}–${blackjackParty.maxPlayers} distinct players.`,
+      );
     this.order = [...ids];
     for (const id of ids)
       this.players.set(id, emptyPlayer(settings.startingChips));
     this.shoe = stackedCards
       ? stackedCards.map((card) => ({ ...card }))
-      : shuffledShoe(settings.decks, random);
+      : buildShoe(settings.decks, random);
     this.stackedShoe = Boolean(stackedCards);
     this.beginRound(now);
   }
@@ -456,14 +465,19 @@ export class BlackjackGame {
     this.activePlayerId = '';
     this.activeHandIndex = 0;
     this.dealerHand = [];
-    this.dealerHoleHidden = true;
+    this.dealerHoleHidden = false;
     this.dealerValue = 0;
     this.lastEvent = 'round-start';
+    // Shuffling on puts every played card back before the next round, so the shoe keeps
+    // its full composition. Off, it is a real shoe: it wears down and is only replaced
+    // once it is too thin to deal from safely.
     if (
       !this.stackedShoe &&
-      this.shoe.length - this.shoeIndex < Math.max(20, 13 * this.settings.decks)
+      (this.settings.shuffle ||
+        this.shoe.length - this.shoeIndex <
+          Math.max(20, 13 * this.settings.decks))
     ) {
-      this.shoe = shuffledShoe(this.settings.decks, this.random);
+      this.shoe = this.reshuffle();
       this.shoeIndex = 0;
     }
     for (const player of this.players.values()) {
@@ -536,7 +550,6 @@ export class BlackjackGame {
     this.dealerHand.push(this.draw());
     for (const id of playing)
       this.players.get(id)!.hands[0]!.cards.push(this.draw());
-    this.dealerHand.push(this.draw());
     for (const id of playing) {
       const player = this.players.get(id)!;
       const hand = player.hands[0]!;
@@ -548,8 +561,7 @@ export class BlackjackGame {
       this.resolveSideBets(player, hand.cards, this.dealerHand[0]!);
     }
     this.lastEvent = 'dealt';
-    if (handValue(this.dealerHand).value === 21) this.beginDealer(now);
-    else this.activateFirstHand(now);
+    this.activateFirstHand(now);
   }
 
   private resolveSideBets(player: MutablePlayer, cards: Card[], upCard: Card) {
@@ -642,6 +654,8 @@ export class BlackjackGame {
     this.stage = 'dealer';
     this.activePlayerId = '';
     this.dealerHoleHidden = false;
+    // The dealer has been sitting on one card all round; they take the second now.
+    if (this.dealerHand.length < 2) this.dealerHand.push(this.draw());
     this.dealerValue = handValue(this.dealerHand).value;
     this.deadline = now + DEALER_STEP_MS;
     this.lastEvent = 'dealer-reveal';
@@ -770,15 +784,29 @@ export class BlackjackGame {
       hand === player.hands[this.activeHandIndex] &&
       this.settings.allowSplit &&
       hand.cards.length === 2 &&
-      hand.cards[0]!.rank === hand.cards[1]!.rank &&
+      cardValue(hand.cards[0]!.rank) === cardValue(hand.cards[1]!.rank) &&
       player.hands.length - 1 < this.settings.maxSplits &&
       player.chips >= hand.bet
     );
   }
 
+  private reshuffle() {
+    return buildShoe(this.settings.decks, this.random);
+  }
+
+  /** Cards still to come, so the table can show how deep the shoe is. */
+  get shoeRemaining() {
+    return Math.max(0, this.shoe.length - this.shoeIndex);
+  }
+
+  /** Cards dealt out of the current shoe. */
+  get shoeUsed() {
+    return this.shoeIndex;
+  }
+
   private draw() {
     if (this.shoeIndex >= this.shoe.length) {
-      this.shoe = shuffledShoe(this.settings.decks, this.random);
+      this.shoe = this.reshuffle();
       this.shoeIndex = 0;
       this.stackedShoe = false;
     }

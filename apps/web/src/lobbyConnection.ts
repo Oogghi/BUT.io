@@ -160,6 +160,8 @@ function snapshotBlackjack(state: BlackjackRoomState) {
       dealerCards: JSON.parse(game.dealerCards || '[]') as Card[],
       dealerCardCount: game.dealerCardCount,
       dealerHoleHidden: game.dealerHoleHidden,
+      shoeRemaining: game.shoeRemaining,
+      shoeUsed: game.shoeUsed,
       dealerValue: game.dealerValue,
       winnerId: game.winnerId,
       rankings: JSON.parse(game.rankings || '[]') as string[],

@@ -105,6 +105,11 @@ export function BlackjackSettings({
               </select>
             </label>
             <Toggle
+              label={t.bj.shuffle}
+              checked={draft.shuffle}
+              onChange={(value) => toggle('shuffle', value)}
+            />
+            <Toggle
               label={t.bj.soft17}
               checked={draft.dealerHitsSoft17}
               onChange={(value) => toggle('dealerHitsSoft17', value)}
@@ -123,7 +128,7 @@ export function BlackjackSettings({
               label={t.bj.maxSplits}
               value={draft.maxSplits}
               min={0}
-              max={3}
+              max={6}
               disabled={!draft.allowSplit}
               onChange={(value) => number('maxSplits', value)}
             />

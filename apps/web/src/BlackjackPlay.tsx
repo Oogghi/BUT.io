@@ -11,7 +11,12 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  type MotionStyle,
+} from 'motion/react';
 import type {
   BlackjackAction,
   BlackjackBet,
@@ -114,6 +119,15 @@ export function BlackjackPlay({
             <span />
           </div>
 
+          {/*
+            With shuffling off the shoe wears down, so the cards that have gone sit in
+            a tray on the far side the way they would on a real table. Shuffling on
+            puts them straight back, so there is nothing to show.
+          */}
+          {!settings.shuffle && game.shoeUsed > 0 && (
+            <DiscardTray used={game.shoeUsed} remaining={game.shoeRemaining} />
+          )}
+
           <section className="bj-dealer" aria-label={t.bj.dealerLabel}>
             <CardRow
               cards={game.dealerCards}
@@ -130,16 +144,15 @@ export function BlackjackPlay({
                 </motion.b>
               )}
             </p>
+            <p className="bj-house-rules" aria-hidden="true">
+              <span>
+                {t.bj.blackjack} {payoutLabel(settings.blackjackPayout)}
+              </span>
+              <span>
+                {settings.dealerHitsSoft17 ? t.bj.hit : t.bj.stand} · 17
+              </span>
+            </p>
           </section>
-
-          <p className="bj-house-rules" aria-hidden="true">
-            <span>
-              {t.bj.blackjack} {payoutLabel(settings.blackjackPayout)}
-            </span>
-            <span>
-              {settings.dealerHitsSoft17 ? t.bj.hit : t.bj.stand} · 17
-            </span>
-          </p>
 
           <ul className="bj-seats">
             {seats.map((player, index) => (
@@ -218,6 +231,43 @@ export function BlackjackPlay({
         </footer>
       </div>
     </ShoeContext>
+  );
+}
+
+/** How tall the tray gets before it stops growing and just counts. */
+const DISCARD_SHOWN = 12;
+
+/**
+ * Cards already dealt out of this shoe, face down the way a real discard tray sits,
+ * with how deep the shoe still is. Only the count crosses the wire — what was played
+ * is never shown, so nothing about the cards leaks through it.
+ */
+function DiscardTray({ used, remaining }: { used: number; remaining: number }) {
+  const backs = Math.min(used, DISCARD_SHOWN);
+  return (
+    <div className="bj-discard" aria-label={t.bj.discardTray(used, remaining)}>
+      <span className="bj-discard-pile" aria-hidden="true">
+        <AnimatePresence initial={false}>
+          {Array.from({ length: backs }, (_, index) => (
+            <motion.span
+              key={used - backs + index}
+              className="bj-discard-card"
+              style={{ '--card-index': index, zIndex: index } as MotionStyle}
+              initial={{ x: 40, opacity: 0, rotate: 14 }}
+              animate={{ x: 0, opacity: 1, rotate: (index % 3) - 1 }}
+              exit={{ opacity: 0 }}
+              transition={spring}
+            >
+              <img src="/blackjack-party/card-back.png" alt="" />
+            </motion.span>
+          ))}
+        </AnimatePresence>
+      </span>
+      <span className="bj-discard-count" aria-hidden="true">
+        <b>{remaining}</b>
+        {t.bj.shoeLeft}
+      </span>
+    </div>
   );
 }
 

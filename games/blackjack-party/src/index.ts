@@ -22,6 +22,8 @@ export interface BlackjackSettings {
   minBet: number;
   maxBet: number;
   decks: number;
+  /** Off deals the shoe in deck order, which also reveals the cards to come. */
+  shuffle: boolean;
   blackjackPayout: 1.2 | 1.5 | 2;
   dealerHitsSoft17: boolean;
   allowDouble: boolean;
@@ -55,11 +57,12 @@ export const defaultBlackjackSettings: Readonly<BlackjackSettings> = {
   minBet: 25,
   maxBet: 250,
   decks: 6,
+  shuffle: false,
   blackjackPayout: 1.5,
   dealerHitsSoft17: false,
   allowDouble: true,
   allowSplit: true,
-  maxSplits: 3,
+  maxSplits: 4,
   doubleAfterSplit: true,
   sideBetsEnabled: true,
   perfectPairsEnabled: true,
@@ -141,6 +144,8 @@ export interface BlackjackGameWireState {
   dealerCards: string;
   dealerCardCount: number;
   dealerHoleHidden: boolean;
+  shoeRemaining: number;
+  shoeUsed: number;
   dealerValue: number;
   winnerId: string;
   rankings: string;

@@ -97,7 +97,7 @@ test('Perfect Pairs and 21+3 categories use the strongest matching hand', () => 
   );
 });
 
-test('dealer hole card is private until reveal and Blackjack uses configured payout', () => {
+test('the dealer shows one card until everyone has acted, then draws', () => {
   const game = new BlackjackGame(
     ['a', 'b'],
     settings({ blackjackPayout: 1.5 }),
@@ -116,12 +116,13 @@ test('dealer hole card is private until reveal and Blackjack uses configured pay
   game.placeBet('a', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 1);
   game.placeBet('b', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 1);
   assert.equal(game.stage, 'playing');
-  assert.equal(game.dealerCardCount, 2);
+  // One card, face up, and no second one waiting face down behind it.
+  assert.equal(game.dealerCardCount, 1);
   assert.deepEqual(game.dealerCards, [card('6', 'clubs')]);
   assert.equal(game.publicPlayer('b').hands[0]!.status, 'blackjack');
   assert.equal(game.act('a', 'stand', 2), null);
+  // Everyone has acted, so the dealer takes their second card now.
   assert.equal(game.stage, 'dealer');
-  assert.equal(game.dealerHoleHidden, false);
   assert.equal(game.dealerCards.length, 2);
   game.expire(game.deadline);
   assert.equal(game.dealerCards.length, 3);
@@ -150,7 +151,7 @@ test('split hands, double down, normal wins, and split wins pay correctly', () =
       card('10', 'hearts'),
       card('3', 'spades'),
       card('2', 'clubs'),
-      card('10', 'diamonds'),
+      card('9', 'diamonds'),
       card('10', 'spades'),
       card('3', 'hearts'),
     ],
@@ -238,4 +239,141 @@ test('bet, action, settings, and rebuy boundaries are enforced', () => {
     game.players.get('a')!.globalCurrencySpentOnRebuys,
     settings().rebuyCost,
   );
+});
+
+test('a lone player holds the table against the dealer', () => {
+  const game = new BlackjackGame(['a'], settings(), 0, () => 0, [
+    card('10', 'hearts'),
+    card('6', 'clubs'),
+    card('9', 'diamonds'),
+    card('10', 'spades'),
+    card('K', 'diamonds'),
+  ]);
+  // The only locked bet is the whole table, so the deal starts straight away.
+  assert.equal(
+    game.placeBet('a', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 1),
+    null,
+  );
+  assert.equal(game.stage, 'playing');
+  assert.equal(game.activePlayerId, 'a');
+  assert.equal(game.publicPlayer('a').hands[0]!.value, 19);
+
+  assert.equal(game.act('a', 'stand', 2), null);
+  assert.equal(game.stage, 'dealer');
+  game.expire(game.deadline); // 16, so the dealer draws and busts on 26
+  game.expire(game.deadline);
+  assert.equal(game.stage, 'round-results');
+  assert.equal(game.players.get('a')!.chips, 110);
+
+  game.expire(game.deadline);
+  assert.equal(game.stage, 'complete');
+  assert.equal(game.winnerId, 'a');
+});
+
+test('shuffling every round returns played cards; off, the shoe wears down', () => {
+  const play = (shuffle: boolean) => {
+    const game = new BlackjackGame(
+      ['a'],
+      settings({ rounds: 3, shuffle, decks: 1 }),
+      0,
+      () => 0,
+    );
+    const bet = { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 };
+    game.placeBet('a', bet, 1);
+    const afterFirstDeal = game.shoeUsed;
+    while (game.stage !== 'round-results') game.expire(game.deadline);
+    game.expire(game.deadline);
+    return { afterFirstDeal, atNextRound: game.shoeUsed };
+  };
+
+  // Shuffling on rebuilds the shoe, so the next round starts from a full one.
+  const shuffled = play(true);
+  assert.ok(shuffled.afterFirstDeal > 0);
+  assert.equal(shuffled.atNextRound, 0);
+
+  // Off, the cards stay spent and the next round deals deeper into the same shoe.
+  const shoe = play(false);
+  assert.ok(shoe.atNextRound >= shoe.afterFirstDeal);
+});
+
+test('the shoe reports its depth so the table can show a discard tray', () => {
+  const dealt = (shuffle: boolean) => {
+    const game = new BlackjackGame(
+      ['a'],
+      settings({ shuffle, decks: 1 }),
+      0,
+      () => 0,
+    );
+    game.placeBet('a', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 1);
+    return game;
+  };
+
+  // Shuffling on rebuilds the shoe each round, so nothing is ever left spent.
+  const shuffled = dealt(true);
+  assert.equal(shuffled.shoeUsed + shuffled.shoeRemaining, 52);
+
+  const shoe = dealt(false);
+  assert.ok(shoe.shoeUsed > 0);
+  assert.equal(shoe.shoeRemaining, 52 - shoe.shoeUsed);
+});
+
+test('any two ten-value cards split, but Perfect Pairs still needs a real pair', () => {
+  const game = new BlackjackGame(
+    ['a'],
+    settings({ maxSplits: 1, perfectPairPayout: 20 }),
+    0,
+    () => 0,
+    [
+      card('Q', 'spades'),
+      card('7', 'clubs'),
+      card('J', 'clubs'),
+      card('9', 'diamonds'),
+      card('4', 'hearts'),
+      card('5', 'hearts'),
+    ],
+  );
+  game.placeBet('a', { main: 10, perfectPairs: 5, twentyOnePlusThree: 0 }, 1);
+
+  // Queen and jack are both worth ten, so the table treats them as a pair to split.
+  const hand = game.publicPlayer('a').hands[0]!;
+  assert.equal(hand.value, 20);
+  assert.equal(hand.canSplit, true);
+  assert.equal(game.act('a', 'split', 2), null);
+  assert.equal(game.publicPlayer('a').hands.length, 2);
+
+  // Perfect Pairs pays on matching ranks only, so a queen with a jack wins nothing.
+  assert.equal(game.players.get('a')!.perfectPairsPayout, 0);
+});
+
+test('a player can keep splitting up to the table limit', () => {
+  const game = new BlackjackGame(
+    ['a'],
+    settings({ startingChips: 1000, maxSplits: 4 }),
+    0,
+    () => 0,
+    [
+      card('Q', 'spades'),
+      card('6', 'clubs'),
+      card('J', 'clubs'),
+      // Every split deals the two new hands a card; a ten keeps the first splittable.
+      card('K', 'diamonds'),
+      card('9', 'hearts'),
+      card('10', 'spades'),
+      card('8', 'clubs'),
+      card('10', 'hearts'),
+      card('7', 'clubs'),
+      card('4', 'diamonds'),
+      card('3', 'spades'),
+      card('5', 'clubs'),
+      card('2', 'hearts'),
+    ],
+  );
+  game.placeBet('a', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 1);
+
+  for (let split = 1; split <= 4; split += 1) {
+    assert.equal(game.act('a', 'split', 2), null, `split ${split}`);
+    assert.equal(game.publicPlayer('a').hands.length, split + 1);
+  }
+  // Four splits is the limit, so a fifth is refused even on another pair.
+  assert.equal(game.act('a', 'split', 2), 'split-not-allowed');
 });
