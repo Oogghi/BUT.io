@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type {
   Card,
@@ -127,23 +127,90 @@ function Hand({
   );
 }
 
-function Spot({ label, amount }: { label: string; amount: number }) {
+/**
+ * A locked wager on the felt. Once `returned` is given the wager is settled: the pile
+ * grows to what it paid (or leaves the table on a loss) under a +/−/= badge.
+ */
+function Spot({
+  label,
+  amount,
+  returned,
+  odds,
+}: {
+  label: string;
+  amount: number;
+  returned?: number | undefined;
+  odds?: string | undefined;
+}) {
+  const settled = returned !== undefined && amount > 0;
+  const shown = settled ? returned : amount;
+  const result = !settled
+    ? ''
+    : returned > amount
+      ? 'win'
+      : returned === amount
+        ? 'push'
+        : 'loss';
   return (
     <span className="poker-spot">
       <span
-        className={`bj-spot is-side is-locked${amount ? ' has-chips' : ''}`}
+        className={`bj-spot is-side is-locked${shown ? ' has-chips' : ''}${result ? ` is-${result}` : ''}`}
       >
-        {amount > 0 && <ChipStack total={amount} />}
+        {shown > 0 && <ChipStack total={shown} />}
       </span>
+      <AnimatePresence>
+        {settled && (
+          <motion.b
+            className={`poker-spot-result is-${result}`}
+            initial={{ y: 8, scale: 0.4, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={spring}
+          >
+            {result === 'push' ? '=' : signed(returned - amount)}
+            {odds && <small>{odds}</small>}
+          </motion.b>
+        )}
+      </AnimatePresence>
       <small>{label}</small>
     </span>
   );
+}
+
+function signed(value: number) {
+  return value > 0 ? `+${value}` : `−${-value}`;
+}
+
+function oddsLabel(multiplier: number) {
+  return multiplier === 1.5 ? '3:2' : `${multiplier}:1`;
+}
+
+/**
+ * Ultimate Poker settles its three wagers one after another once the cards are up:
+ * the play, then the ante, then the blind. Counts 1–3 as each one resolves.
+ */
+function useSettleStep(active: boolean, start: number) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    setStep(0);
+    if (!active) return;
+    const timers = [0, 1, 2].map((index) =>
+      window.setTimeout(
+        () => setStep(index + 1),
+        (start + index * WAGER_STAGGER) * 1000,
+      ),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [active, start]);
+  return step;
 }
 
 /** Seconds between seats when dealing, and when the showdown turns hands over. */
 const SEAT_STAGGER = 0.18;
 /** The dealer flips first at showdown; the seats follow from here. */
 const REVEAL_START = 0.5;
+/** Seconds between settling the play, the ante and the blind. */
+const WAGER_STAGGER = 0.9;
 
 const STAGE_LABELS: Partial<Record<PokerStage, string>> = {
   'ultimate-betting': 'Mise',
@@ -176,11 +243,17 @@ export function PokerPlay({
   const [chosenAnte, setChosenAnte] = useState(0);
   const [chosenRaise, setChosenRaise] = useState(0);
   const { game, settings } = state;
+  const seats = state.players.filter((entry) => game.players.has(entry.id));
+  // Wagers settle once the dealer and every seat have turned their cards.
+  const resultDelay = REVEAL_START + seats.length * SEAT_STAGGER + 0.4;
+  const step = useSettleStep(game.stage === 'showdown', resultDelay);
   const player = game.players.get(sessionId);
   if (!player) return null;
 
   const ultimate = settings.mode === 'ultimate';
   const showdown = game.stage === 'showdown';
+  // The round's net lands after the last wager settles (Hold'em has only the pot).
+  const settled = showdown && step >= (ultimate ? 3 : 1);
   const betting = game.stage === 'ultimate-betting';
   const yourTurn = game.activePlayerId === sessionId;
   const minAnte = settings.ante;
@@ -200,9 +273,6 @@ export function PokerPlay({
   // minimum can still shove: the server caps any raise at what the player has.
   const allIn = player.streetBet + player.chips;
   const raise = Math.max(raiseTo, Math.min(allIn, chosenRaise));
-  const seats = state.players.filter((entry) => game.players.has(entry.id));
-  // Results land once the dealer and every seat have turned their cards.
-  const resultDelay = REVEAL_START + seats.length * SEAT_STAGGER + 0.4;
   const activeName =
     state.players.find((entry) => entry.id === game.activePlayerId)
       ?.displayName ?? '';
@@ -385,13 +455,13 @@ export function PokerPlay({
                     </div>
                   )}
                   <AnimatePresence>
-                    {showdown && seat.totalBet > 0 && (
+                    {settled && seat.totalBet > 0 && (
                       <motion.span
                         className={`bj-outcome is-${seat.folded ? 'loss' : seat.outcome}`}
                         initial={{ scale: 0.4, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ ...spring, delay: resultDelay }}
+                        transition={spring}
                       >
                         {outcomeLabel(seat)}
                       </motion.span>
@@ -419,9 +489,30 @@ export function PokerPlay({
                     </>
                   ) : ultimate ? (
                     <>
-                      <Spot label="Ante" amount={seat.bet.ante} />
-                      <Spot label="Blind" amount={seat.bet.blind} />
-                      <Spot label="Play" amount={seat.bet.play} />
+                      <Spot
+                        label="Ante"
+                        amount={seat.bet.ante}
+                        returned={
+                          showdown && step >= 2 ? seat.returns.ante : undefined
+                        }
+                      />
+                      <Spot
+                        label="Blind"
+                        amount={seat.bet.blind}
+                        returned={
+                          showdown && step >= 3 ? seat.returns.blind : undefined
+                        }
+                        odds={
+                          seat.blindOdds ? oddsLabel(seat.blindOdds) : undefined
+                        }
+                      />
+                      <Spot
+                        label="Play"
+                        amount={seat.bet.play}
+                        returned={
+                          showdown && step >= 1 ? seat.returns.play : undefined
+                        }
+                      />
                     </>
                   ) : (
                     seat.streetBet > 0 && (
@@ -463,13 +554,13 @@ export function PokerPlay({
             >
               Miser <small>{ante * 2}</small>
             </motion.button>
-          ) : showdown ? (
+          ) : settled ? (
             <motion.p
               key="net"
               className={`bj-net is-${player.payout > player.totalBet ? 'up' : player.payout < player.totalBet ? 'down' : 'even'}`}
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ ...spring, delay: resultDelay }}
+              transition={spring}
             >
               <span>{player.handLabel || 'Manche'}</span>
               <strong>{outcomeLabel(player)}</strong>

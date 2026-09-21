@@ -29,7 +29,7 @@ const RANKS: readonly Rank[] = [
   'K',
   'A',
 ];
-const SHOWDOWN_MS = 5000;
+const SHOWDOWN_MS = 7500;
 
 export type PokerHand = {
   category: number;
@@ -196,6 +196,8 @@ function emptyPlayer(chips: number): MutablePlayer {
     handCategory: 0,
     handLabel: '',
     payout: 0,
+    returns: { ante: 0, blind: 0, play: 0 },
+    blindOdds: 0,
     outcome: '',
     rank: 0,
     departed: false,
@@ -308,6 +310,7 @@ export class PokerGame {
       handLabel,
       cards: player.cards.map((card) => ({ ...card })),
       bet: { ...player.bet },
+      returns: { ...player.returns },
     };
   }
 
@@ -431,6 +434,8 @@ export class PokerGame {
       player.handCategory = 0;
       player.handLabel = '';
       player.payout = 0;
+      player.returns = { ante: 0, blind: 0, play: 0 };
+      player.blindOdds = 0;
       player.outcome = '';
       player.rank = 0;
     }
@@ -680,9 +685,12 @@ export class PokerGame {
       player.handCategory = hand.category;
       player.handLabel = hand.label;
       const comparison = player.folded ? -1 : compareHands(hand, dealer);
-      player.payout = player.folded
-        ? 0
-        : ultimatePayout(player.bet, hand, comparison, qualifies);
+      player.returns = player.folded
+        ? { ante: 0, blind: 0, play: 0 }
+        : ultimateReturns(player.bet, hand, comparison, qualifies);
+      player.blindOdds = comparison > 0 ? blindMultiplier(hand) : 0;
+      player.payout =
+        player.returns.ante + player.returns.blind + player.returns.play;
       player.chips += player.payout;
       player.outcome =
         comparison > 0 ? 'win' : comparison === 0 ? 'push' : 'loss';
@@ -767,23 +775,27 @@ export function blindMultiplier(hand: PokerHand) {
   return [0, 0, 0, 0, 1, 1.5, 3, 10, 50][hand.category] ?? 0;
 }
 
-/** Chips returned for an Ultimate Poker hand that reached showdown; comparison is player vs dealer. */
-export function ultimatePayout(
+/**
+ * Chips each wager returns for an Ultimate Poker hand that reached showdown
+ * (comparison is player vs dealer). Play pays 1:1 only when you beat the dealer; the
+ * ante pays 1:1 on a win against a qualified dealer and always comes back when the
+ * dealer does not qualify; the blind pays its paytable on a winning straight or
+ * better and pushes on any other win. A tie pushes everything.
+ */
+export function ultimateReturns(
   bet: PokerBet,
   hand: PokerHand,
   comparison: number,
   dealerQualifies: boolean,
-) {
-  // A dealer who does not qualify always hands the ante back, win or lose.
-  if (comparison < 0) return dealerQualifies ? 0 : bet.ante;
-  const stakes = bet.ante + bet.blind + bet.play;
-  if (comparison === 0) return stakes;
-  return (
-    stakes +
-    (dealerQualifies ? bet.ante : 0) +
-    Math.floor(bet.blind * blindMultiplier(hand)) +
-    bet.play
-  );
+): PokerBet {
+  if (comparison === 0) return { ...bet };
+  if (comparison < 0)
+    return { ante: dealerQualifies ? 0 : bet.ante, blind: 0, play: 0 };
+  return {
+    play: bet.play * 2,
+    ante: dealerQualifies ? bet.ante * 2 : bet.ante,
+    blind: bet.blind + Math.floor(bet.blind * blindMultiplier(hand)),
+  };
 }
 
 export function parsePokerSettings(value: unknown): PokerSettings | null {

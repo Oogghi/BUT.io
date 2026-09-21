@@ -4,7 +4,7 @@ import {
   PokerGame,
   evaluateBest,
   parsePokerSettings,
-  ultimatePayout,
+  ultimateReturns,
 } from '@but/poker-party/server';
 import {
   defaultPokerSettings,
@@ -78,6 +78,11 @@ test('an Ultimate Poker play bet skips the remaining decisions', () => {
   assert.equal(game.publicPlayer('b').payout, 0);
 });
 
+const ultimatePayout = (...args: Parameters<typeof ultimateReturns>) => {
+  const returns = ultimateReturns(...args);
+  return returns.ante + returns.blind + returns.play;
+};
+
 test('Ultimate Poker pays ante, blind and play by the book', () => {
   const bet = { ante: 10, blind: 10, play: 40 };
   const hand = (category: number, top = 10) => ({
@@ -95,6 +100,12 @@ test('Ultimate Poker pays ante, blind and play by the book', () => {
   assert.equal(ultimatePayout(bet, hand(3), 0, true), 60);
   assert.equal(ultimatePayout(bet, hand(3), -1, true), 0);
   assert.equal(ultimatePayout(bet, hand(3), -1, false), 10);
+  // Each wager resolves on its own: play 1:1, ante 1:1 (qualified), blind 3:2.
+  assert.deepEqual(ultimateReturns(bet, hand(5), 1, true), {
+    play: 80,
+    ante: 20,
+    blind: 25,
+  });
 });
 
 test('Hold’em refuses invalid settings and completes a heads-up hand', () => {

@@ -83,6 +83,10 @@ export interface PokerPlayerState {
   handLabel: string;
   /** Chips returned to the player at showdown (stakes included). */
   payout: number;
+  /** Ultimate Poker: what each wager returned at showdown (0 = lost, stake = push). */
+  returns: PokerBet;
+  /** Ultimate Poker: the blind's paytable multiplier for this hand (0 = none). */
+  blindOdds: number;
   outcome: '' | 'win' | 'loss' | 'push';
   rank: number;
   departed: boolean;
