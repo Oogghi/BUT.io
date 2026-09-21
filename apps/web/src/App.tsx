@@ -26,7 +26,14 @@ import {
 } from './lobbyConnection';
 import { spring } from './spring';
 import { loadProfile, type Profile } from './profile';
-import { blackjackError, lobbyError, planError, wordError, t } from './i18n';
+import {
+  blackjackError,
+  lobbyError,
+  planError,
+  pokerError,
+  wordError,
+  t,
+} from './i18n';
 import {
   CommunityDrawer,
   CommunityView,
@@ -130,6 +137,9 @@ export default function App() {
       'blackjack-error',
       (code) => setError(blackjackError(code)),
     );
+    const stopPokerErrors = room.onMessage<string>('poker-error', (code) =>
+      setError(pokerError(code)),
+    );
     const stopRebuys = room.onMessage('rebuy-complete', () => {
       dispatchEvent(new CustomEvent('but-reward-change'));
     });
@@ -160,6 +170,7 @@ export default function App() {
       stopWordErrors();
       stopPlanErrors();
       stopBlackjackErrors();
+      stopPokerErrors();
       stopRebuys();
       stopRewards();
       if (room.connection.isOpen) void room.leave();

@@ -241,6 +241,24 @@ test('bet, action, settings, and rebuy boundaries are enforced', () => {
   );
 });
 
+test('a player can skip a rebuy when they cannot cover the minimum bet', () => {
+  const game = new BlackjackGame(['a', 'b'], settings(), 0, () => 0);
+  game.players.get('a')!.chips = 0;
+
+  assert.equal(
+    game.placeBet('a', { main: 0, perfectPairs: 0, twentyOnePlusThree: 0 }, 1),
+    null,
+  );
+  assert.equal(game.players.get('a')!.betLocked, true);
+  assert.equal(game.stage, 'betting');
+
+  assert.equal(
+    game.placeBet('b', { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 }, 2),
+    null,
+  );
+  assert.equal(game.stage, 'playing');
+});
+
 test('a lone player holds the table against the dealer', () => {
   const game = new BlackjackGame(['a'], settings(), 0, () => 0, [
     card('10', 'hearts'),

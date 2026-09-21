@@ -125,6 +125,7 @@ const en = {
     loss: 'Loss',
     push: 'Push',
     rebuy: 'Rebuy chips',
+    skipRebuy: 'Skip rebuy',
     rebuyCount: (used: number, max: number) => `${used} of ${max} rebuys used`,
     outOfChips: 'Not enough chips for the minimum bet.',
     sideBetWin: (name: string, amount: number) => `${name}: +${amount}`,
@@ -658,6 +659,7 @@ const fr: typeof en = {
     loss: 'Perdu',
     push: 'Égalité',
     rebuy: 'Racheter des jetons',
+    skipRebuy: 'Passer la recave',
     rebuyCount: (used, max) => `${used} recaves sur ${max}`,
     outOfChips: 'Pas assez de jetons pour la mise minimum.',
     sideBetWin: (name, amount) => `${name} : +${amount}`,
@@ -1136,6 +1138,21 @@ export function blackjackError(code: string): string {
   return Object.hasOwn(t.bj.actionErrors, code)
     ? t.bj.actionErrors[code as BlackjackActionError]
     : t.actionFailed;
+}
+
+export function pokerError(code: string): string {
+  const messages: Record<string, string> = {
+    'not-playing': 'Cette action n’est pas disponible maintenant.',
+    'not-your-turn': 'Ce n’est pas ton tour.',
+    'invalid-action': 'Cette action n’est pas autorisée ici.',
+    'invalid-bet': 'Cette mise ne respecte pas les réglages de la table.',
+    'not-enough-chips': 'Tu n’as pas assez de jetons.',
+    'must-call': 'Tu dois suivre ou relancer.',
+    'nothing-to-call': 'Il n’y a rien à suivre.',
+    'raise-too-small': 'La relance est trop petite.',
+    'not-available': 'Cette mise n’est plus disponible.',
+  };
+  return messages[code] ?? t.actionFailed;
 }
 
 /** Localize a lobby error code from the server; anything else (e.g. a transport error) gets `fallback`. */

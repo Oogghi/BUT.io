@@ -8,6 +8,13 @@ import {
   type Card,
 } from '@but/blackjack-party';
 import {
+  defaultPokerSettings,
+  type Card as PokerCard,
+  type PokerPlayerState,
+  type PokerRoomState,
+  type PokerSettings,
+} from '@but/poker-party';
+import {
   isTankId,
   tankArena,
   type Hazard,
@@ -18,7 +25,7 @@ import {
 
 export type LobbyRoom = Room<
   unknown,
-  BombPartyRoomState | TankArenaRoomState | BlackjackRoomState
+  BombPartyRoomState | TankArenaRoomState | BlackjackRoomState | PokerRoomState
 >;
 
 const serverUrl: string =
@@ -35,9 +42,11 @@ export const serverHttpUrl = serverUrl.replace(/^ws/, 'http');
 export function turnKey(state: LobbySnapshot) {
   return state.gameId === 'blackjack-party'
     ? `${state.phase}:${state.game.round}:${state.game.stage}:${state.game.activePlayerId}:${state.game.activeHandIndex}`
-    : state.gameId === tankArena.id
-      ? `${state.phase}:${state.game.turn}:${state.game.stage}`
-      : `${state.phase}:${state.game.turnId}`;
+    : state.gameId === 'poker-party'
+      ? `${state.phase}:${state.game.round}:${state.game.stage}:${state.game.activePlayerId}`
+      : state.gameId === tankArena.id
+        ? `${state.phase}:${state.game.turn}:${state.game.stage}`
+        : `${state.phase}:${state.game.turnId}`;
 }
 
 // The replay is up to a few KB of JSON; parse it once per turn, not on every patch.
@@ -180,6 +189,43 @@ function snapshotBlackjack(state: BlackjackRoomState) {
   };
 }
 
+function snapshotPoker(state: PokerRoomState) {
+  const { game } = state;
+  if (game.serverNow !== serverClock.serverNow)
+    serverClock = { serverNow: game.serverNow, receivedAt: performance.now() };
+  const settings = Object.fromEntries(
+    Object.keys(defaultPokerSettings).map((key) => [
+      key,
+      state.settings[key as keyof PokerSettings],
+    ]),
+  ) as unknown as PokerSettings;
+  return {
+    gameId: 'poker-party' as const,
+    settings,
+    game: {
+      stage: game.stage,
+      round: game.round,
+      endsAt: serverClock.receivedAt + (game.deadline - game.serverNow),
+      activePlayerId: game.activePlayerId,
+      communityCards: JSON.parse(game.communityCards || '[]') as PokerCard[],
+      dealerCards: JSON.parse(game.dealerCards || '[]') as PokerCard[],
+      dealerHoleHidden: game.dealerHoleHidden,
+      dealerHandLabel: game.dealerHandLabel,
+      pot: game.pot,
+      currentBet: game.currentBet,
+      winnerId: game.winnerId,
+      rankings: JSON.parse(game.rankings || '[]') as string[],
+      lastEvent: game.lastEvent,
+      players: new Map(
+        Array.from(game.players, ([id, player]) => [
+          id,
+          JSON.parse(player) as PokerPlayerState,
+        ]),
+      ),
+    },
+  };
+}
+
 /** Copy mutable Colyseus state into a React snapshot on each server patch. */
 export function snapshotRoom(room: LobbyRoom) {
   const state = room.state;
@@ -198,9 +244,11 @@ export function snapshotRoom(room: LobbyRoom) {
   };
   return state.gameId === 'blackjack-party'
     ? { ...base, ...snapshotBlackjack(state as BlackjackRoomState) }
-    : state.gameId === tankArena.id
-      ? { ...base, ...snapshotTankArena(state as TankArenaRoomState) }
-      : { ...base, ...snapshotBombParty(state as BombPartyRoomState) };
+    : state.gameId === 'poker-party'
+      ? { ...base, ...snapshotPoker(state as PokerRoomState) }
+      : state.gameId === tankArena.id
+        ? { ...base, ...snapshotTankArena(state as TankArenaRoomState) }
+        : { ...base, ...snapshotBombParty(state as BombPartyRoomState) };
 }
 
 export type LobbySnapshot = ReturnType<typeof snapshotRoom>;
@@ -216,3 +264,4 @@ export type BlackjackSnapshot = Extract<
   LobbySnapshot,
   { gameId: 'blackjack-party' }
 >;
+export type PokerSnapshot = Extract<LobbySnapshot, { gameId: 'poker-party' }>;

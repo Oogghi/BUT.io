@@ -3,6 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { bombParty } from '@but/bomb-party';
 import { tankArena } from '@but/tank-arena';
 import { blackjackParty } from '@but/blackjack-party';
+import { pokerParty } from '@but/poker-party';
 import type { LobbySnapshot } from './lobbyConnection';
 import { BombPartyPlay } from './BombPartyPlay';
 import { BombPartySettings } from './BombPartySettings';
@@ -13,6 +14,9 @@ import { MapVote } from './MapVote';
 import { BlackjackPlay } from './BlackjackPlay';
 import { BlackjackSettings } from './BlackjackSettings';
 import { BlackjackResults } from './BlackjackResults';
+import { PokerPlay } from './PokerPlay';
+import { PokerResults } from './PokerResults';
+import { PokerSettingsPanel } from './PokerSettings';
 import { gameCards } from './gameCards';
 import { PlayerAvatar } from './Avatar';
 import { StatsPopover, useStatsTarget } from './StatsPopover';
@@ -34,20 +38,28 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
       ? tankArena
       : state.gameId === blackjackParty.id
         ? blackjackParty
-        : bombParty;
+        : state.gameId === pokerParty.id
+          ? pokerParty
+          : bombParty;
   const card = gameCards.find((entry) => entry.id === game.id)!;
   const capacity =
     state.gameId === bombParty.id
       ? state.settings.maxPlayers
       : state.gameId === blackjackParty.id
         ? blackjackParty.maxPlayers
-        : tankArena.maxPlayers;
+        : state.gameId === pokerParty.id
+          ? pokerParty.maxPlayers
+          : tankArena.maxPlayers;
   const self = state.players.find((player) => player.id === sessionId);
   // Spectators don't play, so only the others count toward starting.
   const participants = state.players.filter((player) => !player.spectator);
   const canStart =
-    participants.length >= game.minPlayers &&
-    participants.every((player) => player.ready);
+    participants.length >=
+      (state.gameId === pokerParty.id
+        ? state.settings.mode === 'holdem'
+          ? 2
+          : 1
+        : game.minPlayers) && participants.every((player) => player.ready);
   const readyCount = participants.filter((player) => player.ready).length;
   const reducedMotion = useReducedMotion();
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -124,6 +136,14 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
       <div
         className={`lobby-layout ${state.phase === 'playing' ? 'is-playing' : ''}`}
       >
+        {state.phase !== 'playing' &&
+          (state.phase === 'lobby' && state.gameId === pokerParty.id ? (
+            <PokerSettingsPanel
+              settings={state.settings}
+              host={host}
+              send={send}
+            />
+          ) : null)}
         {state.phase !== 'playing' && (
           <div className="players-panel panel">
             <div className="panel-heading">
@@ -179,6 +199,10 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                         </span>
                       ) : inGame && state.gameId === blackjackParty.id ? (
                         <span className="player-lives blackjack-chip-count">
+                          {state.game.players.get(player.id)?.chips ?? 0} ◉
+                        </span>
+                      ) : inGame && state.gameId === pokerParty.id ? (
+                        <span className="player-lives poker-chip-count">
                           {state.game.players.get(player.id)?.chips ?? 0} ◉
                         </span>
                       ) : inGame && state.gameId === tankArena.id ? (
@@ -364,6 +388,14 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 onPlayerClick={stats.toggle}
               />
             )}
+            {state.phase === 'playing' && state.gameId === pokerParty.id && (
+              <PokerPlay
+                state={state}
+                sessionId={sessionId}
+                send={send}
+                error={error}
+              />
+            )}
             {state.phase === 'results' &&
               state.gameId === blackjackParty.id && (
                 <BlackjackResults
@@ -373,8 +405,17 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                   send={send}
                 />
               )}
+            {state.phase === 'results' && state.gameId === pokerParty.id && (
+              <PokerResults
+                state={state}
+                sessionId={sessionId}
+                host={host}
+                send={send}
+              />
+            )}
             {state.phase === 'results' &&
-              state.gameId !== blackjackParty.id && (
+              state.gameId !== blackjackParty.id &&
+              state.gameId !== pokerParty.id && (
                 <div className="results-content">
                   <span className="phase-symbol">
                     <Icon name="check" />

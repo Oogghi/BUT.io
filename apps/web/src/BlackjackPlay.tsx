@@ -246,7 +246,11 @@ function DiscardTray({ used, remaining }: { used: number; remaining: number }) {
   const backs = Math.min(used, DISCARD_SHOWN);
   return (
     <div className="bj-discard" aria-label={t.bj.discardTray(used, remaining)}>
-      <span className="bj-discard-pile" aria-hidden="true">
+      <span
+        className="bj-discard-pile"
+        style={{ '--backs': backs } as CSSProperties}
+        aria-hidden="true"
+      >
         <AnimatePresence initial={false}>
           {Array.from({ length: backs }, (_, index) => (
             <motion.span
@@ -303,6 +307,13 @@ function BettingDock({
           {t.bj.outOfChips}{' '}
           <span>{t.bj.rebuyCount(player.rebuys, settings.maxRebuys)}</span>
         </p>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => send('bet', EMPTY_BET)}
+        >
+          {t.bj.skipRebuy}
+        </button>
         {settings.rebuysEnabled && player.rebuys < settings.maxRebuys && (
           <button
             className="button primary"
@@ -604,7 +615,7 @@ function Seat({
  * Steps apply against the latest bet rather than the rendered one, so clicking fast
  * never drops a chip.
  */
-function BetSpot({
+export function BetSpot({
   label,
   caption,
   payouts,
@@ -718,7 +729,7 @@ function BetSpot({
  * bet so it is always a legal wager, and duplicates collapse, so a short stack simply
  * offers fewer rungs.
  */
-function quickBets(ceiling: number, step: number): number[] {
+export function quickBets(ceiling: number, step: number): number[] {
   if (ceiling < step) return [];
   const amounts = new Set([step]);
   for (const fraction of [0.25, 0.5, 0.75, 1]) {
@@ -747,7 +758,7 @@ const CHIP_TIER: Record<number, string> = {
  * chip drops on top. Only the top chip's face is showing, so that is where the running
  * total is printed. Capped so a big bet piles up instead of growing without end.
  */
-function ChipStack({ total }: { total: number }) {
+export function ChipStack({ total }: { total: number }) {
   const discs: number[] = [];
   let left = total;
   for (const denomination of DENOMINATIONS)
@@ -1014,7 +1025,7 @@ function SideBetWins({ player }: { player: BlackjackPlayerState }) {
 }
 
 /** Drains over the stage's own timer, so the ring empties exactly at zero. */
-function Timer({
+export function Timer({
   endsAt,
   seconds,
   urgent,
@@ -1084,7 +1095,7 @@ function adjust(
  * Only the direction is computed here; the felt owns the ring's radius in CSS, so each
  * breakpoint can pull the seats in without touching this.
  */
-function seatPosition(index: number, count: number): CSSProperties {
+export function seatPosition(index: number, count: number): CSSProperties {
   const span = count <= 2 ? 76 : count > 4 ? 150 : 122;
   const angle = count === 1 ? 90 : 90 + span / 2 - (index * span) / (count - 1);
   const radians = (angle * Math.PI) / 180;

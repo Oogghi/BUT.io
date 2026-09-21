@@ -85,6 +85,10 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   protected abstract createState(code: string): State;
   /** Current seat limit (games may make it a setting). */
   protected abstract capacity(): number;
+  /** Minimum participants may depend on lobby settings (for example Poker modes). */
+  protected minimumPlayers(): number {
+    return this.game.minPlayers;
+  }
   /** Starts a match with the non-spectating players, in lobby order. */
   protected abstract startMatch(ids: string[]): void;
   /** Clears the finished match before returning to the lobby. */
@@ -259,7 +263,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
       return;
     }
     const participants = this.participants();
-    if (participants.length < this.game.minPlayers) {
+    if (participants.length < this.minimumPlayers()) {
       this.sendError(client, 'not-enough-players');
       return;
     }
