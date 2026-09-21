@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type {
   Card,
@@ -49,14 +49,16 @@ function PokerCard({
   card,
   index,
   delay,
+  stagger,
 }: {
   card: Card | null;
   index: number;
   delay: number;
+  stagger: number;
 }) {
   const reduced = useReducedMotion();
-  const dealAt = reduced ? 0 : delay + index * 0.08;
-  const flipAt = reduced ? 0 : delay + 0.15 + index * 0.12;
+  const dealAt = reduced ? 0 : Math.max(0, delay + index * stagger);
+  const flipAt = reduced ? 0 : dealAt + 0.15;
   const red = card?.suit === 'diamonds' || card?.suit === 'hearts';
   return (
     <motion.div
@@ -101,10 +103,13 @@ function Hand({
   slots = cards.length,
   round,
   delay = 0,
+  stagger = DEAL_STAGGER,
 }: {
   cards: readonly (Card | null)[];
   slots?: number;
   delay?: number;
+  /** Seconds between this hand's cards. */
+  stagger?: number;
   /** Keys cards per round so a new deal flies in instead of flipping in place. */
   round: number;
 }) {
@@ -120,6 +125,7 @@ function Hand({
             card={card}
             index={index}
             delay={delay}
+            stagger={stagger}
           />
         );
       })}
@@ -205,12 +211,31 @@ function useSettleStep(active: boolean, start: number) {
   return step;
 }
 
-/** Seconds between seats when dealing, and when the showdown turns hands over. */
+/** Seconds between cards, and between seats, while dealing. */
+const DEAL_STAGGER = 0.08;
 const SEAT_STAGGER = 0.18;
-/** The dealer flips first at showdown; the seats follow from here. */
-const REVEAL_START = 0.5;
-/** Seconds between settling the play, the ante and the blind. */
-const WAGER_STAGGER = 0.9;
+/**
+ * The showdown is paced so each step can be followed: the rest of the board one card
+ * at a time, then the dealer, then each hidden hand in turn, then the wagers.
+ */
+const REVEAL_CARD = 0.45;
+const REVEAL_SEAT = 1;
+const WAGER_STAGGER = 1.2;
+
+/** Seconds from the start of the showdown at which each part of the table turns over. */
+function showdownTimeline(
+  newBoardCards: number,
+  dealer: boolean,
+  hiddenSeats: number,
+) {
+  const dealerAt = newBoardCards * REVEAL_CARD + 0.3;
+  const seatsAt = dealer ? dealerAt + 2 * REVEAL_CARD + 0.6 : dealerAt;
+  return {
+    dealerAt,
+    seatsAt,
+    wagersAt: seatsAt + hiddenSeats * REVEAL_SEAT + 0.3,
+  };
+}
 
 const STAGE_LABELS: Partial<Record<PokerStage, string>> = {
   'ultimate-betting': 'Mise',
@@ -244,9 +269,18 @@ export function PokerPlay({
   const [chosenRaise, setChosenRaise] = useState(0);
   const { game, settings } = state;
   const seats = state.players.filter((entry) => game.players.has(entry.id));
-  // Wagers settle once the dealer and every seat have turned their cards.
-  const resultDelay = REVEAL_START + seats.length * SEAT_STAGGER + 0.4;
-  const step = useSettleStep(game.stage === 'showdown', resultDelay);
+  // Board cards already on the table before the showdown do not need revealing.
+  const boardSeen = useRef(0);
+  if (game.stage !== 'showdown') boardSeen.current = game.communityCards.length;
+  const hiddenSeats = settings.showAllCards
+    ? []
+    : seats.filter((entry) => entry.id !== sessionId);
+  const timeline = showdownTimeline(
+    5 - boardSeen.current,
+    settings.mode === 'ultimate',
+    hiddenSeats.length,
+  );
+  const step = useSettleStep(game.stage === 'showdown', timeline.wagersAt);
   const player = game.players.get(sessionId);
   if (!player) return null;
 
@@ -407,12 +441,20 @@ export function PokerPlay({
               }
               slots={2}
               round={game.round}
-              delay={showdown ? 0 : seats.length * SEAT_STAGGER}
+              delay={showdown ? timeline.dealerAt : seats.length * SEAT_STAGGER}
+              stagger={showdown ? REVEAL_CARD : DEAL_STAGGER}
             />
             <p className="bj-dealer-name">
               Dealer
               {game.dealerHandLabel && (
-                <motion.b key={game.dealerHandLabel} {...pop}>
+                <motion.b
+                  key={game.dealerHandLabel}
+                  {...pop}
+                  transition={{
+                    ...spring,
+                    delay: timeline.dealerAt + 2 * REVEAL_CARD,
+                  }}
+                >
                   {game.dealerHandLabel}
                 </motion.b>
               )}
@@ -421,7 +463,14 @@ export function PokerPlay({
         )}
 
         <div className="poker-board">
-          <Hand cards={game.communityCards} slots={5} round={game.round} />
+          <Hand
+            cards={game.communityCards}
+            slots={5}
+            round={game.round}
+            // At showdown the first card not yet seen lands first.
+            delay={showdown ? -boardSeen.current * REVEAL_CARD : 0}
+            stagger={showdown ? REVEAL_CARD : DEAL_STAGGER}
+          />
           {!ultimate && <Spot label="Pot" amount={game.pot} />}
         </div>
 
@@ -429,7 +478,10 @@ export function PokerPlay({
           {seats.map((lobbyPlayer, index) => {
             const seat = game.players.get(lobbyPlayer.id)!;
             const you = lobbyPlayer.id === sessionId;
-            const reveal = you || showdown;
+            const reveal = you || showdown || settings.showAllCards;
+            const revealAt =
+              timeline.seatsAt +
+              Math.max(0, hiddenSeats.indexOf(lobbyPlayer)) * REVEAL_SEAT;
             return (
               <li
                 key={lobbyPlayer.id}
@@ -441,7 +493,8 @@ export function PokerPlay({
                     cards={reveal ? seat.cards : seat.cards.map(() => null)}
                     slots={0}
                     round={game.round}
-                    delay={(showdown ? REVEAL_START : 0) + index * SEAT_STAGGER}
+                    delay={showdown ? revealAt : index * SEAT_STAGGER}
+                    stagger={showdown ? 0.3 : DEAL_STAGGER}
                   />
                   {reveal && seat.handLabel && !seat.folded && (
                     <div className="bj-hand-meta">
@@ -449,6 +502,10 @@ export function PokerPlay({
                         key={seat.handLabel}
                         className="bj-value"
                         {...pop}
+                        transition={{
+                          ...spring,
+                          delay: showdown ? revealAt + 0.7 : 0,
+                        }}
                       >
                         {seat.handLabel}
                       </motion.span>

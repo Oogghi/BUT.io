@@ -29,7 +29,10 @@ const RANKS: readonly Rank[] = [
   'K',
   'A',
 ];
-const SHOWDOWN_MS = 7500;
+/** Matches the client's paced reveal: board, dealer, one second per hand, wagers. */
+function showdownMs(mode: PokerMode, players: number) {
+  return 6500 + players * 1000 + (mode === 'ultimate' ? 2500 : 0);
+}
 
 export type PokerHand = {
   category: number;
@@ -653,7 +656,11 @@ export class PokerGame {
     this.visibleCommunity = this.street === 1 ? 3 : this.street === 2 ? 4 : 5;
     this.currentBet = 0;
     this.acted.clear();
-    for (const player of this.players.values()) player.streetBet = 0;
+    // Every live player gets a fresh decision on the new street.
+    for (const player of this.players.values()) {
+      player.streetBet = 0;
+      player.acted = false;
+    }
     this.activePlayerId = this.nextActive(
       this.buttonIndex + 1,
       (entry) => !entry.folded && !entry.departed && !entry.allIn,
@@ -701,7 +708,7 @@ export class PokerGame {
       this.order.find((id) => this.players.get(id)?.outcome === 'win') ?? '';
     this.stage = 'showdown';
     this.activePlayerId = '';
-    this.deadline = now + SHOWDOWN_MS;
+    this.deadline = now + showdownMs(this.settings.mode, this.order.length);
     this.lastEvent = qualifies ? 'dealer-qualified' : 'dealer-not-qualified';
   }
 
@@ -747,7 +754,7 @@ export class PokerGame {
     this.pot = 0;
     this.stage = 'showdown';
     this.activePlayerId = '';
-    this.deadline = now + SHOWDOWN_MS;
+    this.deadline = now + showdownMs(this.settings.mode, this.order.length);
     this.lastEvent = 'showdown';
   }
 
@@ -823,6 +830,7 @@ export function parsePokerSettings(value: unknown): PokerSettings | null {
       (input[key] as number) > max
     )
       return null;
+  if (typeof input.showAllCards !== 'boolean') return null;
   if (
     (input.bigBlind as number) < (input.smallBlind as number) ||
     (input.bigBlind as number) > (input.startingChips as number) ||

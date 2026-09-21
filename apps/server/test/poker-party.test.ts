@@ -28,7 +28,7 @@ test('a solo Ultimate Poker room starts and accepts the full decision path', asy
   host.send('action', 'check');
   await waitFor(host, (state) => state.game.stage === 'ultimate-river');
   host.send('action', 'raise1');
-  await waitFor(host, (state) => state.phase === 'results', 12000);
+  await waitFor(host, (state) => state.phase === 'results', 15000);
   assert.equal(host.state.game.dealerHoleHidden, false);
 });
 

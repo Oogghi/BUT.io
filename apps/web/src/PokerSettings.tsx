@@ -124,6 +124,15 @@ export function PokerSettingsPanel({
             </label>
           </>
         )}
+        <label className="poker-toggle-field">
+          <span>Cartes visibles</span>
+          <input
+            type="checkbox"
+            checked={settings.showAllCards}
+            disabled={!host}
+            onChange={(event) => update({ showAllCards: event.target.checked })}
+          />
+        </label>
       </div>
       {!host && (
         <p className="poker-settings-readonly">

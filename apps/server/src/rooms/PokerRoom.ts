@@ -20,6 +20,7 @@ const SettingsSchema = schema(
     bigBlind: t.uint32(),
     minRaise: t.uint32(),
     bettingSeconds: t.uint8(),
+    showAllCards: t.boolean(),
   },
   'PokerSettings',
 );

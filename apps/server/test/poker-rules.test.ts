@@ -140,3 +140,22 @@ test('Ultimate Poker ante is a minimum, mirrored by the blind and scaling the pl
     play: 300,
   });
 });
+
+test('Hold’em gives every player a decision on each new street', () => {
+  const game = new PokerGame(
+    ['a', 'b'],
+    settings({ mode: 'holdem' }),
+    0,
+    () => 0.37,
+  );
+  // Pre-flop: the small blind calls, the big blind checks.
+  game.act(game.activePlayerId, 'call', 1);
+  game.act(game.activePlayerId, 'check', 2);
+  assert.equal(game.stage, 'holdem-flop');
+  const first = game.activePlayerId;
+  assert.equal(game.act(first, 'check', 3), null);
+  assert.equal(game.stage, 'holdem-flop');
+  assert.notEqual(game.activePlayerId, first);
+  assert.equal(game.act(game.activePlayerId, 'check', 4), null);
+  assert.equal(game.stage, 'holdem-turn');
+});

@@ -26,6 +26,8 @@ export interface PokerSettings {
   bigBlind: number;
   minRaise: number;
   bettingSeconds: number;
+  /** Everyone sees every player's hand during play, not only at showdown. */
+  showAllCards: boolean;
 }
 
 export const defaultPokerSettings: Readonly<PokerSettings> = {
@@ -37,6 +39,7 @@ export const defaultPokerSettings: Readonly<PokerSettings> = {
   bigBlind: 50,
   minRaise: 50,
   bettingSeconds: 30,
+  showAllCards: false,
 };
 
 export type PokerStage =
