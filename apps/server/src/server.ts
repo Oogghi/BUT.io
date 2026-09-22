@@ -10,6 +10,7 @@ import { BombPartyLobbyRoom } from './rooms/BombPartyLobbyRoom.js';
 import { TankArenaRoom } from './rooms/TankArenaRoom.js';
 import { BlackjackRoom } from './rooms/BlackjackRoom.js';
 import { PokerRoom } from './rooms/PokerRoom.js';
+import { MiniGolfRoom } from './rooms/MiniGolfRoom.js';
 import { listPublicTables } from './rooms/LobbyRoom.js';
 
 export function createServer() {
@@ -21,6 +22,7 @@ export function createServer() {
       'tank-arena': defineRoom(TankArenaRoom),
       'blackjack-party': defineRoom(BlackjackRoom),
       'poker-party': defineRoom(PokerRoom),
+      'mini-golf': defineRoom(MiniGolfRoom),
     },
     routes: createRouter({
       // The join screen's list of tables hosts have made public.

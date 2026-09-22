@@ -184,6 +184,9 @@ importers:
       '@but/bomb-party':
         specifier: workspace:*
         version: link:../../games/bomb-party
+      '@but/mini-golf':
+        specifier: workspace:*
+        version: link:../../games/mini-golf
       '@but/poker-party':
         specifier: workspace:*
         version: link:../../games/poker-party
@@ -224,6 +227,9 @@ importers:
       '@but/bomb-party':
         specifier: workspace:*
         version: link:../../games/bomb-party
+      '@but/mini-golf':
+        specifier: workspace:*
+        version: link:../../games/mini-golf
       '@but/poker-party':
         specifier: workspace:*
         version: link:../../games/poker-party
@@ -279,6 +285,12 @@ importers:
       phaser:
         specifier: 4.2.1
         version: 4.2.1
+
+  games/mini-golf:
+    dependencies:
+      '@but/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
 
   games/poker-party:
     dependencies:

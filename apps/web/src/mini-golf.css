@@ -1,0 +1,864 @@
+/* Mini Golf: a raised, toy-like course on the site's dark table, Plato-style. */
+
+.mg-setup {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+  padding: 18px;
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 100% 0, #8bd4501f, transparent 55%),
+    var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line);
+  text-align: left;
+}
+.mg-setup > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mg-setup-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.mg-setup-fields label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.mg-setup-fields select {
+  min-height: 42px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line);
+  font: inherit;
+  font-weight: 700;
+}
+.mg-setup-holes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mg-setup-holes li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: #8bd45014;
+  box-shadow: inset 0 0 0 1px #8bd45040;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mg-setup-holes b {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--lime);
+  font-size: 11px;
+}
+.mg-setup-holes small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Play */
+.mg-play {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-areas:
+    'bar bar'
+    'stage board';
+  gap: 14px;
+  align-items: start;
+}
+.mg-bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 20px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.mg-hole-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.mg-hole-title .mg-hole-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--lime);
+  box-shadow: 0 4px 0 var(--lime-shadow);
+  font-size: 22px;
+  font-weight: 900;
+}
+.mg-hole-title > div {
+  display: grid;
+  min-width: 0;
+}
+.mg-hole-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+}
+.mg-hole-title span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.mg-status {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 800;
+  text-align: center;
+}
+.mg-status-ball {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow:
+    inset -2px -3px 0 #0000002e,
+    0 0 0 2px #ffffff30;
+}
+.mg-play[data-your-turn='true'] .mg-status {
+  color: var(--lime);
+}
+.mg-bar .bj-timer {
+  margin-left: auto;
+}
+
+.mg-stage {
+  grid-area: stage;
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  padding: 12px;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, #1f6a4166, transparent 70%),
+    radial-gradient(circle, #ffffff0c 1px, transparent 1.5px) 0 0 / 18px 18px,
+    #0b2a1f;
+  box-shadow:
+    inset 0 0 0 2px #2c5b45,
+    inset 0 -30px 60px #03100b99;
+}
+.mg-course {
+  display: block;
+  width: 100%;
+  height: min(72dvh, 760px);
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mg-course.can-aim {
+  cursor: crosshair;
+  touch-action: none;
+}
+.mg-course.can-aim:focus-visible {
+  filter: drop-shadow(0 0 0 transparent);
+  outline: 3px solid var(--lime);
+  outline-offset: 4px;
+  border-radius: 20px;
+}
+
+.mg-slab {
+  fill: #1a5a32;
+  filter: drop-shadow(0 18px 18px #020a0699);
+}
+.mg-vignette {
+  fill: none;
+  stroke: #0b3a1c40;
+  stroke-width: 40;
+}
+.mg-sand {
+  stroke: #d8b164;
+  stroke-width: 2;
+}
+.mg-water {
+  stroke: #1f86d6;
+  stroke-width: 2;
+}
+.mg-water-shine {
+  fill: #ffffff;
+  opacity: 0.1;
+  animation: mg-shimmer 3.2s ease-in-out infinite;
+}
+@keyframes mg-shimmer {
+  50% {
+    opacity: 0.22;
+  }
+}
+.mg-boost rect {
+  fill: #2a8c52;
+  stroke: #ffc43d;
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+}
+.mg-boost path {
+  fill: none;
+  stroke: #ffc43d;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: mg-chevron 0.9s ease-in-out infinite;
+}
+@keyframes mg-chevron {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.mg-tee {
+  fill: #2f9e52;
+  stroke: #ffffff4d;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.mg-walls * {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.mg-wall-shadow * {
+  stroke: #8a5f33;
+}
+.mg-wall-top * {
+  stroke: #fff0cc;
+}
+.mg-bumper-shadow {
+  fill: #0a3319;
+  opacity: 0.45;
+}
+.mg-bumper-ring {
+  fill: none;
+  stroke: #ffffff8c;
+  stroke-width: 2;
+}
+.mg-cup-rim {
+  fill: #f4f7fa;
+}
+.mg-flag {
+  pointer-events: none;
+}
+.mg-flag-pole {
+  stroke: #f4f7fa;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.mg-flag-cloth {
+  fill: #ff6b4a;
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: mg-wave 2.4s ease-in-out infinite;
+}
+@keyframes mg-wave {
+  50% {
+    transform: skewY(-6deg) scaleX(0.92);
+  }
+}
+
+.mg-ball {
+  stroke: #ffffff;
+  stroke-width: 2.2;
+}
+.mg-ball-shadow {
+  fill: #062413;
+  opacity: 0.4;
+}
+.mg-ball-shine {
+  fill: #ffffff;
+  opacity: 0.85;
+}
+.mg-ball-turn {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-dasharray: 5 4;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mg-turn 6s linear infinite;
+}
+@keyframes mg-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mg-aim {
+  pointer-events: none;
+}
+.mg-aim-pull {
+  stroke: #ffffff;
+  stroke-opacity: 0.35;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.mg-aim-line {
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 2 9;
+}
+.mg-aim-tip {
+  fill: currentColor;
+  stroke: #ffffff;
+  stroke-width: 2;
+}
+.mg-aim-power {
+  fill: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0b2a1f;
+  stroke-width: 4;
+}
+
+.mg-effect {
+  pointer-events: none;
+}
+.mg-effect-ring {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mg-ring 0.9s ease-out forwards;
+}
+.mg-effect-ring.is-late {
+  animation-delay: 0.18s;
+  opacity: 0;
+}
+.mg-effect.is-splash .mg-effect-ring {
+  stroke: #9ad7ff;
+}
+.mg-effect.is-sunk .mg-effect-ring {
+  stroke: var(--lime);
+}
+@keyframes mg-ring {
+  from {
+    opacity: 1;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+.mg-effect text {
+  fill: #ffffff;
+  font-size: 18px;
+  font-weight: 900;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0b2a1f;
+  stroke-width: 5;
+  animation: mg-rise 1.5s ease-out forwards;
+}
+.mg-effect.is-sunk text {
+  fill: var(--lime);
+}
+@keyframes mg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  80% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+
+.mg-hole-intro {
+  position: absolute;
+  z-index: 3;
+  top: 42%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 16px 28px;
+  border-radius: 22px;
+  background: #0b1d2bdd;
+  box-shadow:
+    inset 0 0 0 2px var(--lime),
+    0 20px 50px #020a12aa;
+  translate: -50% -50%;
+  pointer-events: none;
+  text-align: center;
+}
+.mg-hole-intro span {
+  color: var(--lime);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mg-hole-intro strong {
+  font-size: 26px;
+}
+.mg-hole-intro em {
+  color: var(--muted);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.mg-notice {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 50%;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--sun);
+  box-shadow: 0 4px 0 var(--sun-shadow);
+  font-size: 13px;
+  font-weight: 900;
+  translate: -50% 0;
+  white-space: nowrap;
+}
+.mg-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  color: var(--text);
+  background: #0b1d2bcc;
+  font-size: 12px;
+  font-weight: 800;
+  translate: -50% 0;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.mg-hint svg {
+  width: 14px;
+  height: 14px;
+  rotate: -90deg;
+  color: var(--lime);
+}
+.mg-hint span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.mg-summary {
+  position: absolute;
+  z-index: 4;
+  inset: 50% auto auto 50%;
+  display: grid;
+  gap: 12px;
+  width: min(340px, calc(100% - 32px));
+  padding: 20px;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #0b1d2bf2;
+  box-shadow:
+    inset 0 0 0 2px #3d78a866,
+    0 24px 60px #020a12cc;
+  translate: -50% -50%;
+}
+.mg-summary h3 {
+  margin: 0;
+  font-size: 20px;
+  text-align: center;
+}
+.mg-summary ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mg-summary li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.mg-summary li i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: inset -2px -3px 0 #0000002e;
+}
+.mg-summary li strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mg-summary li b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.mg-summary > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+.mg-summary-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--lime);
+  transform-origin: 0 50%;
+  animation: mg-countdown 4.5s linear forwards;
+}
+@keyframes mg-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+.mg-score-name {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: #ffffff10;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.mg-score-name.is-hole-in-one,
+.mg-score-name.is-eagle {
+  color: var(--ink);
+  background: var(--sun);
+}
+.mg-score-name.is-birdie {
+  color: var(--ink);
+  background: var(--lime);
+}
+.mg-score-name.is-par {
+  color: var(--sky);
+  background: #6cc4ff1f;
+}
+.mg-score-name.is-picked-up,
+.mg-score-name.is-worse,
+.mg-score-name.is-double-bogey {
+  color: var(--coral);
+  background: #ff6b4a1f;
+}
+
+/* Scoreboard */
+.mg-board {
+  grid-area: board;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.mg-board h2 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mg-board ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mg-board li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 8px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px transparent;
+  transition:
+    box-shadow 0.2s ease,
+    translate 0.2s var(--pop);
+}
+.mg-board li.is-active {
+  box-shadow: inset 0 0 0 2px var(--ball);
+  translate: 4px 0;
+}
+.mg-board li.is-departed {
+  opacity: 0.45;
+}
+.mg-board-avatar {
+  position: relative;
+  flex: none;
+}
+.mg-board-avatar .avatar {
+  width: 38px;
+  height: 38px;
+}
+.mg-board-avatar i {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--ball);
+}
+.mg-board li > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.mg-board strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.mg-board strong small {
+  color: var(--muted);
+  font-weight: 700;
+}
+.mg-board li > div > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.mg-board-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--lime);
+}
+.mg-board-in svg {
+  width: 12px;
+  height: 12px;
+}
+.mg-board-total {
+  display: grid;
+  justify-items: end;
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.mg-board-total small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Results */
+.mg-results {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.mg-results img {
+  filter: drop-shadow(0 16px 20px #020a1299);
+}
+.mg-results h2 {
+  margin: 0;
+}
+.mg-results > p {
+  margin: 0;
+  color: var(--muted);
+}
+.mg-card-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.mg-card {
+  border-collapse: separate;
+  border-spacing: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.mg-card th,
+.mg-card td {
+  min-width: 34px;
+  padding: 7px 6px;
+  border-radius: 10px;
+  background: var(--surface);
+  font-weight: 800;
+  text-align: center;
+}
+.mg-card thead th {
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+}
+.mg-card tbody th {
+  min-width: 120px;
+  text-align: left;
+  white-space: nowrap;
+}
+.mg-card tbody th i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+.mg-card-par td,
+.mg-card-par th {
+  color: var(--muted);
+  background: #ffffff08;
+}
+.mg-card td.is-hole-in-one,
+.mg-card td.is-eagle {
+  color: var(--ink);
+  background: var(--sun);
+}
+.mg-card td.is-birdie {
+  color: var(--ink);
+  background: var(--lime);
+}
+.mg-card td.is-bogey,
+.mg-card td.is-double-bogey,
+.mg-card td.is-worse,
+.mg-card td.is-picked-up {
+  color: var(--coral);
+}
+.mg-card-total {
+  font-size: 16px;
+}
+.mg-card tr.is-winner th,
+.mg-card tr.is-winner .mg-card-total {
+  box-shadow: inset 0 0 0 2px var(--sun);
+}
+.mg-card tr.is-you th {
+  color: var(--lime);
+}
+
+@media (max-width: 900px) {
+  .mg-play {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'bar'
+      'board'
+      'stage';
+    gap: 10px;
+  }
+  .mg-board {
+    padding: 10px;
+    overflow-x: auto;
+  }
+  .mg-board h2 {
+    display: none;
+  }
+  .mg-board ol {
+    display: flex;
+    gap: 6px;
+  }
+  .mg-board li {
+    flex: 1 0 auto;
+    min-width: 0;
+    padding: 6px 10px 6px 6px;
+  }
+  .mg-board li.is-active {
+    translate: 0 -2px;
+  }
+  .mg-board-avatar .avatar {
+    width: 30px;
+    height: 30px;
+  }
+  .mg-board strong {
+    max-width: 92px;
+    font-size: 13px;
+  }
+  .mg-board-total {
+    font-size: 17px;
+  }
+  .mg-stage {
+    min-height: 0;
+    padding: 6px;
+    border-radius: 22px;
+  }
+  .mg-course {
+    height: calc(100dvh - 250px);
+    min-height: 420px;
+  }
+  .mg-status {
+    font-size: 14px;
+  }
+  .mg-hint span {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .mg-hole-title strong {
+    font-size: 15px;
+  }
+  .mg-hole-number {
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+  }
+  .mg-bar {
+    gap: 10px;
+    padding: 8px 10px;
+  }
+  .mg-status {
+    justify-content: flex-end;
+  }
+  .mg-setup-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mg-water-shine,
+  .mg-boost path,
+  .mg-flag-cloth,
+  .mg-ball-turn {
+    animation: none;
+  }
+}

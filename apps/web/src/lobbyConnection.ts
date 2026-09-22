@@ -1,6 +1,14 @@
 import { Client, type Room } from '@colyseus/sdk';
 import { parseCosmeticLoadout } from '@but/shared';
 import type { BombPartyRoomState } from '@but/bomb-party';
+import type {
+  CourseLength,
+  MiniGolfPlayer,
+  MiniGolfRoomState,
+  MiniGolfSettings,
+  MiniGolfStage,
+  ShotRecord,
+} from '@but/mini-golf';
 import {
   defaultBlackjackSettings,
   type BlackjackPlayerState,
@@ -26,7 +34,11 @@ import {
 
 export type LobbyRoom = Room<
   unknown,
-  BombPartyRoomState | TankArenaRoomState | BlackjackRoomState | PokerRoomState
+  | BombPartyRoomState
+  | TankArenaRoomState
+  | BlackjackRoomState
+  | PokerRoomState
+  | MiniGolfRoomState
 >;
 
 const serverUrl: string =
@@ -41,6 +53,8 @@ export const serverHttpUrl = serverUrl.replace(/^ws/, 'http');
 
 /** Snapshot `stage`, `turn` or `turnId` changes that should clear a stale action error. */
 export function turnKey(state: LobbySnapshot) {
+  if (state.gameId === 'mini-golf')
+    return `${state.phase}:${state.game.shotSeq}:${state.game.activePlayerId}`;
   return state.gameId === 'blackjack-party'
     ? `${state.phase}:${state.game.round}:${state.game.stage}:${state.game.activePlayerId}:${state.game.activeHandIndex}`
     : state.gameId === 'poker-party'
@@ -246,6 +260,44 @@ export function snapshotRoom(room: LobbyRoom) {
       waitingForRound: player.waitingForRound,
     })),
   };
+  if (state.gameId === 'mini-golf') {
+    const golf = state as MiniGolfRoomState;
+    const { game } = golf;
+    if (game.serverNow !== serverClock.serverNow)
+      serverClock = {
+        serverNow: game.serverNow,
+        receivedAt: performance.now(),
+      };
+    return {
+      ...base,
+      gameId: 'mini-golf' as const,
+      settings: {
+        holes: golf.settings.holes as CourseLength,
+        shotSeconds: golf.settings
+          .shotSeconds as MiniGolfSettings['shotSeconds'],
+      },
+      game: {
+        hole: game.hole,
+        holeId: game.holeId,
+        holeCount: game.holeCount,
+        stage: game.stage as MiniGolfStage,
+        activePlayerId: game.activePlayerId,
+        /** `performance.now()` time the current stage ends on this client. */
+        endsAt: serverClock.receivedAt + (game.deadline - game.serverNow),
+        shotSeq: game.shotSeq,
+        shot: game.shot ? (JSON.parse(game.shot) as ShotRecord) : null,
+        notice: game.notice,
+        noticeSeq: game.noticeSeq,
+        winnerId: game.winnerId,
+        players: new Map(
+          Array.from(game.players, ([id, player]) => [
+            id,
+            JSON.parse(player) as MiniGolfPlayer,
+          ]),
+        ),
+      },
+    };
+  }
   return state.gameId === 'blackjack-party'
     ? { ...base, ...snapshotBlackjack(state as BlackjackRoomState) }
     : state.gameId === 'poker-party'
@@ -269,3 +321,4 @@ export type BlackjackSnapshot = Extract<
   { gameId: 'blackjack-party' }
 >;
 export type PokerSnapshot = Extract<LobbySnapshot, { gameId: 'poker-party' }>;
+export type MiniGolfSnapshot = Extract<LobbySnapshot, { gameId: 'mini-golf' }>;

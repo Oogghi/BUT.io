@@ -7,10 +7,11 @@
     "build": "tsc --noEmit",
     "start": "tsx --env-file-if-exists=.env src/index.ts",
     "smoke": "tsx --env-file-if-exists=.env --test test/foundation.test.ts",
-    "test": "tsx --test --test-timeout=30000 test/public-tables.test.ts test/blackjack-rules.test.ts test/blackjack-party.test.ts test/poker-rules.test.ts test/poker-party.test.ts test/bomb-party.test.ts test/game-rules.test.ts test/tank-arena.test.ts test/tank-rules.test.ts test/poker-rewards.test.ts test/cosmetics.test.ts",
+    "test": "tsx --test --test-timeout=30000 test/mini-golf-rules.test.ts test/mini-golf.test.ts test/public-tables.test.ts test/blackjack-rules.test.ts test/blackjack-party.test.ts test/poker-rules.test.ts test/poker-party.test.ts test/bomb-party.test.ts test/game-rules.test.ts test/tank-arena.test.ts test/tank-rules.test.ts test/poker-rewards.test.ts test/cosmetics.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@but/mini-golf": "workspace:*",
     "@but/blackjack-party": "workspace:*",
     "@but/poker-party": "workspace:*",
     "@but/bomb-party": "workspace:*",

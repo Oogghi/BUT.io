@@ -5,6 +5,12 @@ import { bombParty } from '@but/bomb-party';
 import { tankArena } from '@but/tank-arena';
 import { blackjackParty } from '@but/blackjack-party';
 import { pokerParty } from '@but/poker-party';
+import { miniGolf, totalScore } from '@but/mini-golf';
+import {
+  MiniGolfPlay,
+  MiniGolfResults,
+  MiniGolfSettingsPanel,
+} from './MiniGolfPlay';
 import type { LobbySnapshot } from './lobbyConnection';
 import { BombPartyPlay } from './BombPartyPlay';
 import { BombPartySettings } from './BombPartySettings';
@@ -35,22 +41,26 @@ interface Props {
 export function LobbyView({ state, sessionId, send, leave, error }: Props) {
   const host = state.hostId === sessionId;
   const game =
-    state.gameId === tankArena.id
-      ? tankArena
-      : state.gameId === blackjackParty.id
-        ? blackjackParty
-        : state.gameId === pokerParty.id
-          ? pokerParty
-          : bombParty;
+    state.gameId === miniGolf.id
+      ? miniGolf
+      : state.gameId === tankArena.id
+        ? tankArena
+        : state.gameId === blackjackParty.id
+          ? blackjackParty
+          : state.gameId === pokerParty.id
+            ? pokerParty
+            : bombParty;
   const card = gameCards.find((entry) => entry.id === game.id)!;
   const capacity =
-    state.gameId === bombParty.id
-      ? state.settings.maxPlayers
-      : state.gameId === blackjackParty.id
-        ? blackjackParty.maxPlayers
-        : state.gameId === pokerParty.id
-          ? pokerParty.maxPlayers
-          : tankArena.maxPlayers;
+    state.gameId === miniGolf.id
+      ? miniGolf.maxPlayers
+      : state.gameId === bombParty.id
+        ? state.settings.maxPlayers
+        : state.gameId === blackjackParty.id
+          ? blackjackParty.maxPlayers
+          : state.gameId === pokerParty.id
+            ? pokerParty.maxPlayers
+            : tankArena.maxPlayers;
   const self = state.players.find((player) => player.id === sessionId);
   // Spectators don't play, so only the others count toward starting.
   const participants = state.players.filter((player) => !player.spectator);
@@ -191,6 +201,13 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                         <span className="ready-label is-spectating">
                           <Icon name="eye" />
                           {t.spectating}
+                        </span>
+                      ) : inGame && state.gameId === miniGolf.id ? (
+                        <span className="player-lives">
+                          {totalScore(
+                            state.game.players.get(player.id) ?? { scores: [] },
+                          )}{' '}
+                          ⛳
                         </span>
                       ) : inGame && state.gameId === blackjackParty.id ? (
                         <span className="player-lives blackjack-chip-count">
@@ -364,6 +381,13 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 ) : (
                   <p className="waiting-note">{t.hostStarts}</p>
                 )}
+                {state.gameId === miniGolf.id && (
+                  <MiniGolfSettingsPanel
+                    settings={state.settings}
+                    host={host}
+                    send={send}
+                  />
+                )}
                 {state.gameId === bombParty.id && (
                   <BombPartySettings
                     settings={state.settings}
@@ -391,6 +415,17 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                   ? t.joiningNextMatch
                   : t.joiningNextRound}
               </p>
+            )}
+            {state.phase === 'playing' && state.gameId === miniGolf.id && (
+              <MiniGolfPlay state={state} sessionId={sessionId} send={send} />
+            )}
+            {state.phase === 'results' && state.gameId === miniGolf.id && (
+              <MiniGolfResults
+                state={state}
+                sessionId={sessionId}
+                host={host}
+                send={send}
+              />
             )}
             {state.phase === 'playing' && state.gameId === tankArena.id && (
               <TankArenaPlay

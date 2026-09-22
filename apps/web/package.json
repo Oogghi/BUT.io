@@ -10,6 +10,7 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@but/mini-golf": "workspace:*",
     "@but/blackjack-party": "workspace:*",
     "@but/poker-party": "workspace:*",
     "@but/bomb-party": "workspace:*",
