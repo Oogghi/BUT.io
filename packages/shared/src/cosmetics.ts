@@ -30,6 +30,18 @@ export type CosmeticLoadout = Partial<Record<CosmeticSlot, CosmeticId>>;
 export function isCosmeticId(value: unknown): value is CosmeticId {
   return cosmeticCatalog.some((item) => item.id === value);
 }
+/** Items supported by the live player_cosmetics constraint and purchase RPC. */
+export const persistedCosmeticIds = [
+  'coral-frame',
+  'mint-frame',
+  'sky-frame',
+] as const satisfies readonly CosmeticId[];
+export type PersistedCosmeticId = (typeof persistedCosmeticIds)[number];
+export function isPersistedCosmeticId(
+  value: unknown,
+): value is PersistedCosmeticId {
+  return persistedCosmeticIds.some((id) => id === value);
+}
 /** Reject unknown items and wrong-slot assignments; optionally enforce ownership. */
 export function normalizeCosmeticLoadout(
   value: unknown,

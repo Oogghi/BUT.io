@@ -1,5 +1,7 @@
 # Avatar expansion — 22 September 2026
 
+Current live compatibility: [the schema audit](supabase-schema-audit.md) supersedes the rollout instructions below. Free avatars remain available; premium account-backed avatars are hidden because their database expansion is unapplied. The artwork and renderer support are retained for a separate coordinated rollout.
+
 ## Result and rollout
 
 Added six free SVG faces (Starry, Dreamer, Heart eyes, Cheeky, Mustache, Masked), for twelve free avatars total. Added four account-owned premium avatars purchasable with earned coins: Royal smile (120), Orbit buddy (160), Pocket wizard (140), Pixel pal (160).

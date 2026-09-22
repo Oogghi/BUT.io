@@ -17,6 +17,14 @@ const recorded: {
 // Exercise real auth/RPC HTTP requests, without using a live account or wallet.
 const supabase = createServer(async (request, response) => {
   response.setHeader('Content-Type', 'application/json');
+  const url = new URL(request.url ?? '/', 'http://localhost');
+  if (url.pathname === '/rest/v1/profiles') {
+    const id = url.searchParams.get('id')?.replace(/^eq\./, '');
+    response.end(
+      JSON.stringify([hostId, guestId].includes(id ?? '') ? [{ id }] : []),
+    );
+    return;
+  }
   if (request.url === '/auth/v1/user') {
     const token = request.headers.authorization?.replace('Bearer ', '');
     response.end(

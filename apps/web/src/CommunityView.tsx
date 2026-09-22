@@ -27,7 +27,7 @@ import {
   signUp,
   type Account,
   type FriendState,
-  type GameId,
+  type StatsGameId,
   type GameStatsView,
   type LeaderboardEntry,
   type LeaderboardMetric,
@@ -776,6 +776,7 @@ function StatsFeature({ account }: { account: Account }) {
         <GameStatsCard game={stats.games['bomb-party']} />
         <GameStatsCard game={stats.games['tank-arena']} />
         <GameStatsCard game={stats.games['blackjack-party']} />
+        <GameStatsCard game={stats.games['poker-party']} />
       </div>
       <RecentGames matches={stats.recentMatches} />
     </div>
@@ -798,101 +799,112 @@ function SummaryStat({
 }
 
 function GameStatsCard({ game }: { game: GameStatsView }) {
+  const poker = game.gameId === 'poker-party';
   const bombParty = game.gameId === 'bomb-party';
   const blackjack = game.gameId === 'blackjack-party';
-  const values = blackjack
+  const values = poker
     ? [
         [t.statGamesPlayed, game.gamesPlayed],
         [t.statWins, game.wins],
-        [
-          t.community.roundsPlayed,
-          metric(game.metrics, 'roundsPlayed', 'rounds_played'),
-        ],
-        [
-          t.community.roundsWon,
-          metric(game.metrics, 'roundsWon', 'rounds_won'),
-        ],
-        [t.community.blackjacks, metric(game.metrics, 'blackjacks')],
-        [t.community.busts, metric(game.metrics, 'busts')],
-        [
-          t.community.doubleDownWins,
-          metric(game.metrics, 'doubleDownWins', 'double_down_wins'),
-        ],
-        [
-          t.community.splitWins,
-          metric(game.metrics, 'splitWins', 'split_wins'),
-        ],
-        [
-          t.community.perfectPairsWins,
-          metric(game.metrics, 'perfectPairsWins', 'perfect_pairs_wins'),
-        ],
-        [
-          t.community.twentyOnePlusThreeWins,
-          metric(
-            game.metrics,
-            'twentyOnePlusThreeWins',
-            'twenty_one_plus_three_wins',
-          ),
-        ],
-        [
-          t.community.highestChipBalance,
-          metric(
-            game.metrics,
-            'highestEndingChipBalance',
-            'highest_ending_chip_balance',
-          ),
-        ],
-        [t.community.rebuys, metric(game.metrics, 'rebuys')],
-        [
-          t.community.rebuyCoinsSpent,
-          metric(
-            game.metrics,
-            'globalCurrencySpentOnRebuys',
-            'global_currency_spent_on_rebuys',
-          ),
-        ],
       ]
-    : bombParty
+    : blackjack
       ? [
           [t.statGamesPlayed, game.gamesPlayed],
           [t.statWins, game.wins],
           [
-            t.community.wordsAccepted,
-            metric(game.metrics, 'words_accepted', 'wordsAccepted'),
+            t.community.roundsPlayed,
+            metric(game.metrics, 'roundsPlayed', 'rounds_played'),
           ],
           [
-            t.community.bestStreak,
-            metric(game.metrics, 'best_streak', 'bestStreak'),
+            t.community.roundsWon,
+            metric(game.metrics, 'roundsWon', 'rounds_won'),
+          ],
+          [t.community.blackjacks, metric(game.metrics, 'blackjacks')],
+          [t.community.busts, metric(game.metrics, 'busts')],
+          [
+            t.community.doubleDownWins,
+            metric(game.metrics, 'doubleDownWins', 'double_down_wins'),
           ],
           [
-            t.community.livesRecovered,
-            metric(game.metrics, 'lives_recovered', 'livesRecovered'),
+            t.community.splitWins,
+            metric(game.metrics, 'splitWins', 'split_wins'),
+          ],
+          [
+            t.community.perfectPairsWins,
+            metric(game.metrics, 'perfectPairsWins', 'perfect_pairs_wins'),
+          ],
+          [
+            t.community.twentyOnePlusThreeWins,
+            metric(
+              game.metrics,
+              'twentyOnePlusThreeWins',
+              'twenty_one_plus_three_wins',
+            ),
+          ],
+          [
+            t.community.highestChipBalance,
+            metric(
+              game.metrics,
+              'highestEndingChipBalance',
+              'highest_ending_chip_balance',
+            ),
+          ],
+          [t.community.rebuys, metric(game.metrics, 'rebuys')],
+          [
+            t.community.rebuyCoinsSpent,
+            metric(
+              game.metrics,
+              'globalCurrencySpentOnRebuys',
+              'global_currency_spent_on_rebuys',
+            ),
           ],
         ]
-      : [
-          [t.statGamesPlayed, game.gamesPlayed],
-          [t.statWins, game.wins],
-          [t.community.kills, metric(game.metrics, 'kills')],
-          [t.community.deaths, metric(game.metrics, 'deaths')],
-          [
-            t.statDamageDealt,
-            metric(game.metrics, 'damage_dealt', 'damageDealt'),
-          ],
-          [
-            t.community.shotsFired,
-            metric(game.metrics, 'shots_fired', 'shotsFired'),
-          ],
-          [t.community.shotsHit, metric(game.metrics, 'shots_hit', 'shotsHit')],
-          [t.statAccuracy, formatStatPercent(gameAccuracy(game))],
-        ];
+      : bombParty
+        ? [
+            [t.statGamesPlayed, game.gamesPlayed],
+            [t.statWins, game.wins],
+            [
+              t.community.wordsAccepted,
+              metric(game.metrics, 'words_accepted', 'wordsAccepted'),
+            ],
+            [
+              t.community.bestStreak,
+              metric(game.metrics, 'best_streak', 'bestStreak'),
+            ],
+            [
+              t.community.livesRecovered,
+              metric(game.metrics, 'lives_recovered', 'livesRecovered'),
+            ],
+          ]
+        : [
+            [t.statGamesPlayed, game.gamesPlayed],
+            [t.statWins, game.wins],
+            [t.community.kills, metric(game.metrics, 'kills')],
+            [t.community.deaths, metric(game.metrics, 'deaths')],
+            [
+              t.statDamageDealt,
+              metric(game.metrics, 'damage_dealt', 'damageDealt'),
+            ],
+            [
+              t.community.shotsFired,
+              metric(game.metrics, 'shots_fired', 'shotsFired'),
+            ],
+            [
+              t.community.shotsHit,
+              metric(game.metrics, 'shots_hit', 'shotsHit'),
+            ],
+            [t.statAccuracy, formatStatPercent(gameAccuracy(game))],
+          ];
   return (
     <section className="community-game-card panel">
       <h2>
-        {blackjack
-          ? 'Blackjack Party'
-          : bombParty
-            ? 'Bomb Party'
-            : 'Tank Arena'}
+        {poker
+          ? 'Poker Party'
+          : blackjack
+            ? 'Blackjack Party'
+            : bombParty
+              ? 'Bomb Party'
+              : 'Tank Arena'}
       </h2>
       <dl className="community-stat-grid">
         {values.map(([label, value]) => (
@@ -930,11 +942,13 @@ function RecentGames({
                     : t.community.draw}
               </span>
               <strong>
-                {match.gameId === 'bomb-party'
-                  ? 'Bomb Party'
-                  : match.gameId === 'blackjack-party'
-                    ? 'Blackjack Party'
-                    : 'Tank Arena'}
+                {match.gameId === 'poker-party'
+                  ? 'Poker Party'
+                  : match.gameId === 'bomb-party'
+                    ? 'Bomb Party'
+                    : match.gameId === 'blackjack-party'
+                      ? 'Blackjack Party'
+                      : 'Tank Arena'}
               </strong>
               <time dateTime={match.playedAt}>
                 {formatDate(match.playedAt)}
@@ -949,7 +963,7 @@ function RecentGames({
 }
 
 function LeaderboardFeature({ account }: { account: Account }) {
-  const [gameId, setGameId] = useState<GameId>('bomb-party');
+  const [gameId, setGameId] = useState<StatsGameId>('bomb-party');
   const [selected, setSelected] = useState<LeaderboardMetric>('wins');
   const [rows, setRows] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -995,11 +1009,12 @@ function LeaderboardFeature({ account }: { account: Account }) {
           {t.community.game}
           <select
             value={gameId}
-            onChange={(event) => setGameId(event.target.value as GameId)}
+            onChange={(event) => setGameId(event.target.value as StatsGameId)}
           >
             <option value="bomb-party">Bomb Party</option>
             <option value="tank-arena">Tank Arena</option>
             <option value="blackjack-party">Blackjack Party</option>
+            <option value="poker-party">Poker Party</option>
           </select>
         </label>
         <label>

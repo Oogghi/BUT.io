@@ -229,13 +229,6 @@ export function LockerView() {
               </button>
             ))}
           </div>
-          <a
-            className="text-link locker-premium-link"
-            href="#locker-rewards-title"
-            onClick={() => setCategory('avatar')}
-          >
-            {c.premiumAvatars} <Icon name="arrow" />
-          </a>
         </section>
       </div>
 
@@ -325,7 +318,8 @@ export function LockerView() {
             .filter((item) => category === 'all' || item.slot === category)
             .map((cosmetic) => {
               const owned =
-                rewards?.ownedCosmetics.includes(cosmetic.id) ?? false;
+                rewards?.ownedCosmetics.some((id) => id === cosmetic.id) ??
+                false;
               const equipped =
                 rewards?.equippedCosmetics[cosmetic.slot] === cosmetic.id;
               const busy = busyCosmetic === cosmetic.id;

@@ -1,11 +1,12 @@
-import { cosmeticCatalog } from '@but/shared';
-import { lang } from './i18n';
-export {
-  isCosmeticId,
-  cosmeticSlots,
-  normalizeCosmeticLoadout,
+import {
+  cosmeticCatalog,
+  isPersistedCosmeticId,
+  type CosmeticSlot,
 } from '@but/shared';
+import { lang } from './i18n';
+export { isCosmeticId, normalizeCosmeticLoadout } from '@but/shared';
 export type { CosmeticId, CosmeticSlot, CosmeticLoadout } from '@but/shared';
+export const cosmeticSlots: readonly CosmeticSlot[] = ['frame'];
 
 const copy = {
   en: [
@@ -45,11 +46,13 @@ const copy = {
     ['Copain robot', 'Ton alter ego mécanique et souriant.'],
   ],
 };
-export const cosmetics = cosmeticCatalog.map((item, index) => ({
-  ...item,
-  name: copy[lang][index]![0]!,
-  description: copy[lang][index]![1]!,
-}));
+export const cosmetics = cosmeticCatalog
+  .map((item, index) => ({
+    ...item,
+    name: copy[lang][index]![0]!,
+    description: copy[lang][index]![1]!,
+  }))
+  .filter((item) => isPersistedCosmeticId(item.id));
 export const cosmeticLabels =
   lang === 'fr'
     ? {
@@ -83,7 +86,7 @@ export const cosmeticLabels =
         reset: 'Retirer',
         preview: 'Rejouer',
         equipped: 'Ton équipement',
-        hint: 'Un objet par emplacement. Tes choix sont visibles par les autres joueurs à ta prochaine entrée dans un salon.',
+        hint: 'Un cadre équipé à la fois. Les autres joueurs verront ton choix à ta prochaine entrée dans un salon.',
         empty: 'Classique',
         loading: 'Chargement des cosmétiques…',
         insufficient: 'Pièces insuffisantes',
@@ -119,7 +122,7 @@ export const cosmeticLabels =
         reset: 'Unequip',
         preview: 'Replay',
         equipped: 'Your loadout',
-        hint: 'One item per slot. Other players see your choices the next time you join a lobby.',
+        hint: 'One equipped frame at a time. Other players see your choice the next time you join a lobby.',
         empty: 'Classic',
         loading: 'Loading cosmetics…',
         insufficient: 'Not enough coins',

@@ -6,11 +6,12 @@ import {
   type GlobalStats,
 } from '@but/shared';
 import {
-  isCosmeticId,
+  isPersistedCosmeticId,
   normalizeCosmeticLoadout,
   type CosmeticId,
   type CosmeticSlot,
   type CosmeticLoadout,
+  type PersistedCosmeticId,
 } from '@but/shared';
 
 const url = import.meta.env?.VITE_SUPABASE_URL;
@@ -29,6 +30,8 @@ export const supabase =
     : null;
 
 export type GameId = 'bomb-party' | 'tank-arena' | 'blackjack-party';
+/** The match RPC supports Poker; group_lobby_invites does not. */
+export type StatsGameId = GameId | 'poker-party';
 export type LeaderboardMetric = 'wins' | 'winRate' | 'bestStreak' | 'kills';
 export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
 
@@ -57,14 +60,22 @@ type DataLayerErrorCode =
   | 'cosmetic-owned'
   | 'cosmetic-not-owned'
   | 'not-enough-coins'
+  | 'schema-mismatch'
+  | 'permission-denied'
   | 'request-failed';
 
 export class DataLayerError extends Error {
   readonly code: DataLayerErrorCode;
+  readonly databaseCode: string | undefined;
 
-  constructor(code: DataLayerErrorCode, message: string) {
+  constructor(
+    code: DataLayerErrorCode,
+    message: string,
+    databaseCode?: string,
+  ) {
     super(message);
     this.code = code;
+    this.databaseCode = databaseCode;
     this.name = 'DataLayerError';
   }
 }
@@ -84,16 +95,16 @@ export interface Account {
 
 export interface RewardState {
   coins: number;
-  ownedCosmetics: CosmeticId[];
-  equippedCosmetic: CosmeticId | null;
+  ownedCosmetics: PersistedCosmeticId[];
+  equippedCosmetic: PersistedCosmeticId | null;
+  /** Derived rendering state; the database persists only the frame. */
   equippedCosmetics: CosmeticLoadout;
 }
 
 interface WalletRow {
   user_id: string;
-  coins: number | null;
+  coins: number;
   equipped_cosmetic: string | null;
-  equipped_cosmetics?: unknown;
 }
 
 interface CosmeticRow {
@@ -104,12 +115,12 @@ interface CosmeticRow {
 interface GameStatsRow {
   user_id: string;
   game_id: string;
-  games_played: number | null;
-  wins: number | null;
-  losses: number | null;
-  playtime_seconds: number | null;
+  games_played: number;
+  wins: number;
+  losses: number;
+  playtime_seconds: number;
   metrics: unknown;
-  updated_at: string | null;
+  updated_at: string;
 }
 
 interface MatchHistoryRow {
@@ -117,7 +128,7 @@ interface MatchHistoryRow {
   game_id: string;
   winner_id: string | null;
   metadata: unknown;
-  started_at: string | null;
+  started_at: string;
   ended_at: string | null;
   created_at: string;
 }
@@ -125,7 +136,7 @@ interface MatchHistoryRow {
 interface FriendshipRow {
   user_id: string;
   friend_id: string;
-  status: string;
+  status: 'pending' | 'accepted' | 'blocked';
   created_at: string;
   updated_at: string;
 }
@@ -148,7 +159,7 @@ interface GroupInviteRow {
   group_id: string;
   inviter_id: string;
   invitee_id: string;
-  status: string;
+  status: GroupInviteStatus;
   created_at: string;
   updated_at: string;
 }
@@ -166,7 +177,7 @@ interface GroupLobbyInviteRow {
 
 export interface GameStatsView {
   userId: string;
-  gameId: GameId;
+  gameId: StatsGameId;
   gamesPlayed: number;
   wins: number;
   losses: number;
@@ -176,7 +187,7 @@ export interface GameStatsView {
 
 export interface RecentMatch {
   id: string;
-  gameId: GameId;
+  gameId: StatsGameId;
   result: 'win' | 'loss' | 'draw';
   playedAt: string;
   durationSeconds: number;
@@ -184,7 +195,7 @@ export interface RecentMatch {
 
 export interface PlayerStatsView {
   global: GlobalStats;
-  games: Record<GameId, GameStatsView>;
+  games: Record<StatsGameId, GameStatsView>;
   recentMatches: RecentMatch[];
 }
 
@@ -259,12 +270,35 @@ function client() {
   return supabase;
 }
 
-function fail(error: { message: string } | null): never | void {
+interface DatabaseError {
+  message: string;
+  code?: string | undefined;
+}
+
+function requestError(error: DatabaseError): DataLayerError {
+  const code = [
+    '42703',
+    '42P01',
+    '42883',
+    'PGRST200',
+    'PGRST202',
+    'PGRST204',
+    'PGRST205',
+  ].includes(error.code ?? '')
+    ? 'schema-mismatch'
+    : error.code === '42501'
+      ? 'permission-denied'
+      : 'request-failed';
+  return new DataLayerError(code, error.message, error.code);
+}
+
+function fail(error: DatabaseError | null): never | void {
   if (!error) return;
-  throw new DataLayerError('request-failed', error.message);
+  throw requestError(error);
 }
 
 const groupErrorCodes = new Set<DataLayerErrorCode>([
+  'not-authenticated',
   'already-in-group',
   'invalid-group-code',
   'group-not-found',
@@ -280,13 +314,12 @@ const groupErrorCodes = new Set<DataLayerErrorCode>([
   'invalid-lobby',
 ]);
 
-function groupFailure(error: { message: string } | null): never | void {
+function groupFailure(error: DatabaseError | null): never | void {
   if (!error) return;
   const code = error.message as DataLayerErrorCode;
-  throw new DataLayerError(
-    groupErrorCodes.has(code) ? code : 'request-failed',
-    error.message,
-  );
+  throw groupErrorCodes.has(code)
+    ? new DataLayerError(code, error.message, error.code)
+    : requestError(error);
 }
 
 async function groupRpc<T>(
@@ -357,7 +390,11 @@ function normalizeGroupLobbyInvite(
     : null;
 }
 
-function emptyGameStats(gameId: GameId): GameStatsView {
+function parseStatsGameId(value: string): StatsGameId | null {
+  return value === 'poker-party' ? value : parseGameId(value);
+}
+
+function emptyGameStats(gameId: StatsGameId): GameStatsView {
   return {
     userId: '',
     gameId,
@@ -370,7 +407,7 @@ function emptyGameStats(gameId: GameId): GameStatsView {
 }
 
 function normalizeGameStats(row: GameStatsRow): GameStatsView | null {
-  const id = parseGameId(row.game_id);
+  const id = parseStatsGameId(row.game_id);
   return id
     ? {
         userId: row.user_id,
@@ -394,17 +431,31 @@ function normalizeMatch(
   row: MatchHistoryRow,
   userId: string,
 ): RecentMatch | null {
-  const id = parseGameId(row.game_id);
+  const id = parseStatsGameId(row.game_id);
   if (!id) return null;
+  const metadata = row.metadata as { participants?: unknown } | null;
+  const participant = Array.isArray(metadata?.participants)
+    ? (metadata.participants.find(
+        (entry: unknown) =>
+          entry !== null &&
+          typeof entry === 'object' &&
+          'playerId' in entry &&
+          entry.playerId === userId,
+      ) as { outcome?: unknown } | undefined)
+    : undefined;
+  if (!participant) return null;
+  const outcome = participant.outcome;
   return {
     id: row.id,
     gameId: id,
     result:
-      row.winner_id === null
-        ? 'draw'
-        : row.winner_id === userId
-          ? 'win'
-          : 'loss',
+      outcome === 'win' || outcome === 'loss' || outcome === 'draw'
+        ? outcome
+        : row.winner_id === null
+          ? 'draw'
+          : row.winner_id === userId
+            ? 'win'
+            : 'loss',
     playedAt: row.ended_at ?? row.started_at ?? row.created_at,
     durationSeconds: duration(row.started_at, row.ended_at),
   };
@@ -563,7 +614,7 @@ export async function signOut() {
   fail(error);
 }
 
-function rewardFailure(error: { message: string } | null): never | void {
+function rewardFailure(error: DatabaseError | null): never | void {
   if (!error) return;
   const code = error.message as DataLayerErrorCode;
   const rewardCodes = new Set<DataLayerErrorCode>([
@@ -573,26 +624,31 @@ function rewardFailure(error: { message: string } | null): never | void {
     'cosmetic-not-owned',
     'not-enough-coins',
   ]);
-  throw new DataLayerError(
-    rewardCodes.has(code) ? code : 'request-failed',
-    error.message,
-  );
+  throw rewardCodes.has(code)
+    ? new DataLayerError(code, error.message, error.code)
+    : requestError(error);
 }
 
 function normalizeRewardState(
   wallet: WalletRow | null,
   owned: CosmeticRow[],
 ): RewardState {
+  const ownedCosmetics = owned
+    .map((row) => row.cosmetic_id)
+    .filter(isPersistedCosmeticId);
+  const equippedCosmetic =
+    isPersistedCosmeticId(wallet?.equipped_cosmetic) &&
+    ownedCosmetics.includes(wallet.equipped_cosmetic)
+      ? wallet.equipped_cosmetic
+      : null;
   return {
     coins: Math.max(0, number(wallet?.coins)),
-    ownedCosmetics: owned.map((row) => row.cosmetic_id).filter(isCosmeticId),
+    ownedCosmetics,
     equippedCosmetics: normalizeCosmeticLoadout(
-      wallet?.equipped_cosmetics ?? { frame: wallet?.equipped_cosmetic },
-      owned.map((row) => row.cosmetic_id),
+      { frame: equippedCosmetic },
+      ownedCosmetics,
     ),
-    equippedCosmetic: isCosmeticId(wallet?.equipped_cosmetic)
-      ? wallet.equipped_cosmetic
-      : null,
+    equippedCosmetic,
   };
 }
 
@@ -601,7 +657,7 @@ export async function loadRewardState(userId: string): Promise<RewardState> {
   const [walletResult, ownedResult] = await Promise.all([
     db
       .from('player_wallets')
-      .select('user_id,coins,equipped_cosmetic,equipped_cosmetics')
+      .select('user_id, coins, equipped_cosmetic')
       .eq('user_id', userId)
       .maybeSingle(),
     db
@@ -626,7 +682,7 @@ function normalizeRewardRpc(
       : {};
   return {
     coins: Math.max(0, number(row.coins)),
-    equippedCosmetic: isCosmeticId(row.equipped_cosmetic)
+    equippedCosmetic: isPersistedCosmeticId(row.equipped_cosmetic)
       ? row.equipped_cosmetic
       : null,
   };
@@ -635,7 +691,7 @@ function normalizeRewardRpc(
 export async function purchaseCosmetic(
   cosmeticId: CosmeticId,
 ): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
-  if (!isCosmeticId(cosmeticId))
+  if (!isPersistedCosmeticId(cosmeticId))
     throw new DataLayerError(
       'cosmetic-not-found',
       'That cosmetic is unavailable.',
@@ -651,8 +707,15 @@ export async function setEquippedCosmetic(
   cosmeticId: CosmeticId | null,
   slot: CosmeticSlot = 'frame',
 ): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
-  const { data, error } = await client().rpc('set_cosmetic_slot', {
-    p_slot: slot,
+  if (
+    slot !== 'frame' ||
+    (cosmeticId !== null && !isPersistedCosmeticId(cosmeticId))
+  )
+    throw new DataLayerError(
+      'cosmetic-not-found',
+      'That cosmetic is unavailable.',
+    );
+  const { data, error } = await client().rpc('set_equipped_cosmetic', {
     p_cosmetic_id: cosmeticId,
   });
   rewardFailure(error);
@@ -673,26 +736,24 @@ export async function loadPlayerStats(
     db
       .from('match_history')
       .select('id,game_id,winner_id,metadata,started_at,ended_at,created_at')
+      .contains('metadata', { participants: [{ playerId: userId }] })
       .order('created_at', { ascending: false })
       .limit(8),
   ]);
   fail(statsResult.error);
   fail(historyResult.error);
 
-  const games: Record<GameId, GameStatsView> = {
+  const games: Record<StatsGameId, GameStatsView> = {
     'bomb-party': emptyGameStats('bomb-party'),
     'tank-arena': emptyGameStats('tank-arena'),
     'blackjack-party': emptyGameStats('blackjack-party'),
+    'poker-party': emptyGameStats('poker-party'),
   };
   for (const row of (statsResult.data ?? []) as GameStatsRow[]) {
     const game = normalizeGameStats(row);
     if (game) games[game.gameId] = game;
   }
-  const global = combineGlobalStats(
-    games['bomb-party'],
-    games['tank-arena'],
-    games['blackjack-party'],
-  );
+  const global = combineGlobalStats(...Object.values(games));
   const recentMatches =
     (historyResult.data as MatchHistoryRow[] | null)
       ?.map((row) => normalizeMatch(row, userId))
@@ -707,9 +768,10 @@ export async function loadPlayerStatsByUsername(
     .from('profiles')
     .select('id')
     .eq('username', username)
-    .maybeSingle();
+    .limit(2);
   fail(error);
-  return data?.id ? loadPlayerStats(data.id as string) : null;
+  // Usernames are not unique in the live schema; never pick an arbitrary account.
+  return data?.length === 1 ? loadPlayerStats(data[0]!.id as string) : null;
 }
 
 export async function searchProfiles(
@@ -790,6 +852,11 @@ export async function sendFriendRequest(userId: string, friendId: string) {
   if (userId === friendId)
     throw new DataLayerError('self-request', 'You cannot add yourself.');
   const existing = await friendshipRows(userId, friendId);
+  if (existing.some((row) => row.status === 'blocked'))
+    throw new DataLayerError(
+      'request-failed',
+      'A friend request is unavailable for this player.',
+    );
   if (existing.some((row) => row.status === 'accepted'))
     throw new DataLayerError('already-friends', 'You are already friends.');
   const pending = existing.find((row) => row.status === 'pending');
@@ -825,7 +892,7 @@ export async function declineFriendRequest(
 ) {
   const { error } = await client()
     .from('friendships')
-    .update({ status: 'declined' })
+    .delete()
     .eq('user_id', requesterId)
     .eq('friend_id', userId)
     .eq('status', 'pending');
@@ -972,6 +1039,11 @@ export async function publishGroupLobbyInvite(
   gameId: GameId,
   gameName: string,
 ) {
+  if (!parseGameId(gameId))
+    throw new DataLayerError(
+      'invalid-game',
+      'That game does not support group invitations.',
+    );
   const row = await groupRpc<GroupLobbyInviteRow>(
     'publish_group_lobby_invite',
     {
@@ -1053,7 +1125,7 @@ function leaderboardValue(
 }
 
 export async function loadLeaderboard(
-  gameId: GameId,
+  gameId: StatsGameId,
   selected: LeaderboardMetric,
 ): Promise<LeaderboardEntry[]> {
   const { data, error } = await client()

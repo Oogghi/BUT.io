@@ -25,7 +25,7 @@ if (!admin) {
   );
 }
 
-/** Returns a real account id for a valid signed-in token; guests are ignored. */
+/** Reward participants must have a profile, as required by the stats/history FKs. */
 export async function verifiedUserId(
   accessToken: unknown,
 ): Promise<string | null> {
@@ -33,7 +33,14 @@ export async function verifiedUserId(
   try {
     const { data, error } = await admin.auth.getUser(accessToken);
     if (error || !data.user || data.user.is_anonymous) return null;
-    return data.user.id;
+    const profile = await admin
+      .from('profiles')
+      .select('id')
+      .eq('id', data.user.id)
+      .maybeSingle();
+    return !profile.error && profile.data?.id === data.user.id
+      ? data.user.id
+      : null;
   } catch {
     // An unavailable account service must not prevent playing as a guest.
     return null;
@@ -49,7 +56,7 @@ export async function equippedCosmetics(
     const [wallet, ownership] = await Promise.all([
       admin
         .from('player_wallets')
-        .select('equipped_cosmetics,equipped_cosmetic')
+        .select('equipped_cosmetic')
         .eq('user_id', userId)
         .maybeSingle(),
       admin
@@ -61,11 +68,8 @@ export async function equippedCosmetics(
     const owned = (ownership.data ?? [])
       .map((row) => row.cosmetic_id)
       .filter((id): id is string => typeof id === 'string');
-    const equipped = wallet.data?.equipped_cosmetics;
     return normalizeCosmeticLoadout(
-      equipped && typeof equipped === 'object' && !Array.isArray(equipped)
-        ? equipped
-        : { frame: wallet.data?.equipped_cosmetic },
+      { frame: wallet.data?.equipped_cosmetic },
       owned,
     );
   } catch {

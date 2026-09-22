@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   cosmeticCatalog,
+  isPersistedCosmeticId,
+  persistedCosmeticIds,
   normalizeCosmeticLoadout,
   parseCosmeticLoadout,
 } from '../src/cosmetics.ts';
@@ -39,7 +41,7 @@ test('only known, owned items in matching slots survive loadout validation', () 
   }
 });
 
-test('shop prices and slots match the authoritative SQL catalog', () => {
+test('expanded artwork catalog matches the unapplied expansion migration', () => {
   const sql = readFileSync(
     new URL(
       '../../../supabase/migrations/20260921224407_premium_avatar_cosmetics.sql',
@@ -51,4 +53,28 @@ test('shop prices and slots match the authoritative SQL catalog', () => {
     ...sql.matchAll(/\('([^']+)', '([^']+)', (\d+)::bigint\)/g),
   ].map(([, id, slot, price]) => ({ id, slot, price: Number(price) }));
   assert.deepEqual(rows, cosmeticCatalog);
+});
+
+test('live purchasable items and prices match the deployed single-frame RPC', () => {
+  const sql = readFileSync(
+    new URL(
+      '../../../supabase/migrations/20260919190000_rewards.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const rows = [...sql.matchAll(/when '([^']+)' then (\d+)/g)].map(
+    ([, id, price]) => ({ id, price: Number(price) }),
+  );
+  assert.deepEqual(
+    rows,
+    cosmeticCatalog
+      .filter((item) => isPersistedCosmeticId(item.id))
+      .map(({ id, price }) => ({ id, price })),
+  );
+  assert.deepEqual(
+    rows.map(({ id }) => id),
+    persistedCosmeticIds,
+  );
+  assert.equal(isPersistedCosmeticId('royal-avatar'), false);
 });
