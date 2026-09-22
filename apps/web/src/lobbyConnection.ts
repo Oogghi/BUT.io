@@ -235,6 +235,7 @@ export function snapshotRoom(room: LobbyRoom) {
     phase: state.phase,
     hostId: state.hostId,
     resultReason: state.resultReason,
+    isPublic: state.isPublic,
     players: Array.from(state.players, ([id, player]) => ({
       id,
       displayName: player.displayName,
@@ -242,6 +243,7 @@ export function snapshotRoom(room: LobbyRoom) {
       cosmetics: parseCosmeticLoadout(player.cosmetics),
       ready: player.ready,
       spectator: player.spectator,
+      waitingForRound: player.waitingForRound,
     })),
   };
   return state.gameId === 'blackjack-party'

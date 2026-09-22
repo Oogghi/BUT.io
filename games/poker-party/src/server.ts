@@ -235,6 +235,7 @@ function stageFor(mode: PokerMode, street: number): PokerStage {
 export class PokerGame {
   readonly players = new Map<string, MutablePlayer>();
   readonly order: string[];
+  private readonly waitingPlayers = new Set<string>();
   readonly settings: Readonly<PokerSettings>;
   stage: PokerStage = '';
   round = 0;
@@ -426,7 +427,23 @@ export class PokerGame {
     return true;
   }
 
+  /** Queue without touching the current hand, bets, timers, or results. */
+  joinNextRound(id: string): boolean {
+    if (
+      this.stage === 'complete' ||
+      this.players.has(id) ||
+      this.waitingPlayers.has(id) ||
+      [...this.players.values()].filter((player) => !player.departed).length +
+        this.waitingPlayers.size >=
+        pokerParty.maxPlayers
+    )
+      return false;
+    this.waitingPlayers.add(id);
+    return true;
+  }
+
   leave(id: string, now: number) {
+    this.waitingPlayers.delete(id);
     const player = this.players.get(id);
     if (!player || player.departed || this.stage === 'complete') return;
     player.departed = true;
@@ -447,6 +464,15 @@ export class PokerGame {
   }
 
   private beginRound(now: number) {
+    // Keep departed seats in the result history, but free their table positions.
+    for (let index = this.order.length - 1; index >= 0; index -= 1)
+      if (this.players.get(this.order[index]!)?.departed)
+        this.order.splice(index, 1);
+    for (const id of this.waitingPlayers) {
+      this.players.set(id, emptyPlayer(this.settings.startingChips));
+      this.order.push(id);
+    }
+    this.waitingPlayers.clear();
     this.round += 1;
     this.cards = deck(this.random);
     this.dealerHand = [];

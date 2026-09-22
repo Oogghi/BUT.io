@@ -17,6 +17,8 @@ import { ProfileAvatar } from './Avatar';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import { t } from './i18n';
 import { CardOptions, GameCard } from './GameCard';
+import { PublicTables } from './PublicTables';
+import { Drawer } from './Drawer';
 import { gameCards } from './gameCards';
 import { useGroupSession } from './GroupSession';
 import type { AuthMode, CommunitySection } from './CommunityView';
@@ -107,7 +109,7 @@ export function EntryForm({
   const [searchParams] = useSearchParams();
   const invitedGame =
     gameCards.find((game) => game.id === searchParams.get('game')) ??
-    gameCards[0];
+    gameCards.find((game) => game.id === bombParty.id)!;
   // Use the collapsed catalog's columns, even while an open card changes the grid.
   useEffect(() => {
     const element = grid.current;
@@ -127,7 +129,7 @@ export function EntryForm({
 
   useEffect(() => {
     const panel = document.getElementById(
-      directJoin ? 'join-options' : activeGame ? activeGame + '-options' : '',
+      activeGame ? activeGame + '-options' : '',
     );
     if (panel && panel.getBoundingClientRect().bottom > window.innerHeight) {
       panel.scrollIntoView({
@@ -135,7 +137,7 @@ export function EntryForm({
         behavior: reducedMotion ? 'instant' : 'smooth',
       });
     }
-  }, [activeGame, directJoin, reducedMotion]);
+  }, [activeGame, reducedMotion]);
 
   function closeOptions() {
     if (pending) return;
@@ -169,6 +171,15 @@ export function EntryForm({
           ? { gameId: activeGame ?? bombParty.id }
           : { code: target },
       );
+  }
+
+  function joinTable(target: string) {
+    if (!name.trim()) {
+      setErrors({ name: t.nameRequired, code: '' });
+      nameInput.current?.focus();
+      return;
+    }
+    void connect({ ...profile, displayName: name.trim() }, { code: target });
   }
 
   function updateProfile(changes: Partial<Profile>) {
@@ -424,26 +435,50 @@ export function EntryForm({
                 </GameCard>
               ))}
             </div>
-            <AnimatePresence initial={false}>
-              {directJoin && (
-                <CardOptions
-                  key="join-options"
-                  id="join-options"
-                  name={t.joinRoom}
-                  color="sky"
-                  reducedMotion={reducedMotion}
-                  onClose={closeOptions}
-                >
-                  <div className="selection-heading">
-                    <h3>{t.joinRoom}</h3>
-                    <p>{t.polish.joinHint}</p>
-                  </div>
-                  {roomForm()}
-                  {closeButton()}
-                </CardOptions>
-              )}
-            </AnimatePresence>
           </LayoutGroup>
+        )}
+        {!code && (
+          <Drawer
+            open={directJoin}
+            onClose={closeOptions}
+            id="join-options"
+            label={t.joinRoom}
+            popup
+          >
+            <header className="community-drawer-header">
+              <div className="community-drawer-heading">
+                <span className="community-drawer-icon settings-drawer-icon">
+                  <Icon name="users" />
+                </span>
+                <div>
+                  <span className="eyebrow">{t.joinRoom}</span>
+                  <h2>{t.openTables}</h2>
+                </div>
+              </div>
+              <button
+                className="community-drawer-close"
+                type="button"
+                aria-label={t.closeOptions}
+                disabled={pending}
+                onClick={closeOptions}
+              >
+                ×
+              </button>
+            </header>
+            <div className="community-drawer-body join-popup-body">
+              {/* The name field sits behind the popup, so its error shows here too. */}
+              {errors.name && (
+                <p role="alert" className="notice">
+                  {errors.name}
+                </p>
+              )}
+              <PublicTables disabled={pending} onJoin={joinTable} />
+              <div className="join-popup-code">
+                <p>{t.polish.joinHint}</p>
+                {roomForm()}
+              </div>
+            </div>
+          </Drawer>
         )}
       </section>
     </>

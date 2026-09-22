@@ -1,10 +1,16 @@
-import { defineRoom, defineServer } from '@colyseus/core';
+import {
+  createEndpoint,
+  createRouter,
+  defineRoom,
+  defineServer,
+} from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { FoundationRoom } from './rooms/FoundationRoom.js';
 import { BombPartyLobbyRoom } from './rooms/BombPartyLobbyRoom.js';
 import { TankArenaRoom } from './rooms/TankArenaRoom.js';
 import { BlackjackRoom } from './rooms/BlackjackRoom.js';
 import { PokerRoom } from './rooms/PokerRoom.js';
+import { listPublicTables } from './rooms/LobbyRoom.js';
 
 export function createServer() {
   return defineServer({
@@ -16,6 +22,12 @@ export function createServer() {
       'blackjack-party': defineRoom(BlackjackRoom),
       'poker-party': defineRoom(PokerRoom),
     },
+    routes: createRouter({
+      // The join screen's list of tables hosts have made public.
+      tables: createEndpoint('/tables', { method: 'GET' }, async (ctx) =>
+        ctx.json(listPublicTables()),
+      ),
+    }),
   });
 }
 

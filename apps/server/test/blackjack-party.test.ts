@@ -6,8 +6,59 @@ import {
 } from '@but/blackjack-party';
 import { useTestServer } from './lobbyClient.js';
 
-const { create, join, waitFor } =
+const { create, join, waitFor, nextError } =
   useTestServer<BlackjackRoomState>('blackjack-party');
+
+test('late Blackjack client watches, then joins round two; voluntary spectators stay out', async () => {
+  const host = await create('Host');
+  const watcher = await join(host.roomId, 'Watcher');
+  watcher.send('spectate', true);
+  host.send('settings', {
+    ...defaultBlackjackSettings,
+    rounds: 2,
+    bettingSeconds: 30,
+  });
+  await waitFor(
+    host,
+    (state) =>
+      state.settings.rounds === 2 &&
+      state.players.get(watcher.sessionId)?.spectator === true,
+  );
+  host.send('ready', true);
+  await waitFor(
+    host,
+    (state) => state.players.get(host.sessionId)?.ready === true,
+  );
+  host.send('start');
+  await waitFor(host, (state) => state.phase === 'playing');
+  const late = await join(host.roomId, 'Late');
+  assert.equal(late.state.players.get(late.sessionId)?.waitingForRound, true);
+  assert.equal(late.state.players.get(late.sessionId)?.spectator, true);
+  assert.equal(late.state.game.players.has(late.sessionId), false);
+  const rejected = nextError(late, 'blackjack-error');
+  late.send('bet', { main: 25, perfectPairs: 0, twentyOnePlusThree: 0 });
+  assert.equal(await rejected, 'not-betting');
+  const gone = await join(host.roomId, 'Leaving');
+  await gone.leave();
+  await waitFor(host, (state) => !state.players.has(gone.sessionId));
+  host.send('bet', { main: 0, perfectPairs: 0, twentyOnePlusThree: 0 });
+  await waitFor(late, (state) => state.game.round === 2, 15000);
+  assert.equal(late.state.players.get(late.sessionId)?.spectator, false);
+  assert.equal(late.state.players.get(late.sessionId)?.waitingForRound, false);
+  assert.equal(late.state.players.get(watcher.sessionId)?.spectator, true);
+  assert.equal(late.state.game.players.has(watcher.sessionId), false);
+  assert.equal(late.state.game.players.has(gone.sessionId), false);
+  assert.equal(
+    JSON.parse(late.state.game.players.get(late.sessionId)!).chips,
+    defaultBlackjackSettings.startingChips,
+  );
+  late.send('bet', { main: 25, perfectPairs: 0, twentyOnePlusThree: 0 });
+  await waitFor(
+    late,
+    (state) =>
+      JSON.parse(state.game.players.get(late.sessionId)!).bet.main === 25,
+  );
+});
 
 test('two real clients finish a complete authoritative Blackjack match', async () => {
   const host = await create('Host');

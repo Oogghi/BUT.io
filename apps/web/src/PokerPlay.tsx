@@ -285,6 +285,8 @@ export function PokerPlay({
 }) {
   const [chosenAnte, setChosenAnte] = useState(0);
   const [chosenRaise, setChosenRaise] = useState(0);
+  // The last ante you actually placed, offered back as a one-tap rebet next round.
+  const [lastAnte, setLastAnte] = useState(0);
   const { game, settings } = state;
   const seats = state.players.filter((entry) => game.players.has(entry.id));
   // Board cards already on the table before the showdown do not need revealing.
@@ -300,7 +302,8 @@ export function PokerPlay({
   );
   const step = useSettleStep(game.stage === 'showdown', timeline.wagersAt);
   const player = game.players.get(sessionId);
-  if (!player) return null;
+  const chips = player?.chips ?? 0;
+  const streetBet = player?.streetBet ?? 0;
 
   const ultimate = settings.mode === 'ultimate';
   const showdown = game.stage === 'showdown';
@@ -321,11 +324,11 @@ export function PokerPlay({
       !seat.acted,
     );
   };
-  const yourTurn = deciding(sessionId);
+  const yourTurn = Boolean(player && deciding(sessionId));
   const minAnte = settings.ante;
-  const stake = player.bet.ante;
-  const maxAnte = Math.floor(player.chips / 2);
-  const choosing = betting && !stake && !player.folded;
+  const stake = player?.bet.ante ?? 0;
+  const maxAnte = Math.floor(chips / 2);
+  const choosing = Boolean(player && betting && !stake && !player.folded);
   const ante = chosenAnte > maxAnte ? 0 : chosenAnte;
   // Ante and blind are one wager: tapping either circle moves both.
   const adjustAnte = (direction: 1 | -1) =>
@@ -333,12 +336,23 @@ export function PokerPlay({
       const next = Math.min(maxAnte, previous + direction * minAnte);
       return next < minAnte ? 0 : next;
     });
-  const toCall = Math.max(0, game.currentBet - player.streetBet);
+  const toCall = Math.max(0, game.currentBet - streetBet);
   const raiseTo = game.currentBet + settings.minRaise;
   // Raise target, from the minimum legal raise up to all-in. A stack short of the
   // minimum can still shove: the server caps any raise at what the player has.
-  const allIn = player.streetBet + player.chips;
+  const allIn = streetBet + chips;
   const raise = Math.max(raiseTo, Math.min(allIn, chosenRaise));
+  // Pot-sized raises count the call first. Only sizes strictly between the minimum
+  // and all-in are offered, so no shortcut duplicates another or the slider's ends.
+  const potRaise = game.currentBet + game.pot + toCall;
+  const raisePresets = (
+    [
+      [`½ ${t.pk.pot}`, game.currentBet + Math.floor((game.pot + toCall) / 2)],
+      [t.pk.pot, potRaise],
+    ] as const
+  )
+    .filter(([, amount]) => amount > raiseTo && amount < allIn)
+    .concat([[t.pk.allIn, allIn]]);
   const waitingOn = seats
     .filter((entry) => entry.id !== sessionId && deciding(entry.id))
     .map((entry) => entry.displayName)
@@ -351,7 +365,7 @@ export function PokerPlay({
       key={`raise${multiple}`}
       type="button"
       className="button bj-action is-hit"
-      disabled={stake * multiple > player.chips}
+      disabled={stake * multiple > chips}
       onClick={() => act(`raise${multiple}`)}
       {...buttonIn}
     >
@@ -398,7 +412,7 @@ export function PokerPlay({
                   onClick={() => act('call')}
                   {...buttonIn}
                 >
-                  {t.pk.call} <small>{Math.min(toCall, player.chips)}</small>
+                  {t.pk.call} <small>{Math.min(toCall, chips)}</small>
                 </motion.button>
               ) : (
                 check
@@ -407,7 +421,7 @@ export function PokerPlay({
                 <button
                   type="button"
                   className="button bj-action is-raise"
-                  disabled={player.chips <= toCall}
+                  disabled={chips <= toCall}
                   onClick={() => {
                     act({ type: 'raise', amount: raise });
                     setChosenRaise(0);
@@ -428,6 +442,20 @@ export function PokerPlay({
                       setChosenRaise(Number(event.target.value))
                     }
                   />
+                )}
+                {allIn > raiseTo && (
+                  <div className="poker-raise-presets">
+                    {raisePresets.map(([label, amount]) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className={raise === amount ? 'is-current' : undefined}
+                        onClick={() => setChosenRaise(amount)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </motion.div>,
               fold,
@@ -644,20 +672,40 @@ export function PokerPlay({
         {yourTurn && ultimate && <p className="bj-hint">{t.pk.playHint}</p>}
         <AnimatePresence mode="popLayout" initial={false}>
           {choosing ? (
-            <motion.button
-              key="bet"
-              type="button"
-              className="button primary bj-deal"
-              disabled={!ante}
-              onClick={() => {
-                send('bet', { ante });
-                setChosenAnte(0);
-              }}
-              {...buttonIn}
-            >
-              {t.pk.bet} <small>{ante * 2}</small>
-            </motion.button>
-          ) : settled ? (
+            <motion.div key="bet" className="bj-actions" {...buttonIn}>
+              {ante > 0 && (
+                <button
+                  type="button"
+                  className="button secondary bj-clear"
+                  onClick={() => setChosenAnte(0)}
+                >
+                  {t.bj.clearBet}
+                </button>
+              )}
+              {/* Most rounds you want the same bet again; tapping it back in is a chore. */}
+              {!ante && lastAnte > 0 && lastAnte <= maxAnte && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => setChosenAnte(lastAnte)}
+                >
+                  {t.bj.rebet(lastAnte * 2)}
+                </button>
+              )}
+              <button
+                type="button"
+                className="button primary bj-deal"
+                disabled={!ante}
+                onClick={() => {
+                  send('bet', { ante });
+                  setLastAnte(ante);
+                  setChosenAnte(0);
+                }}
+              >
+                {t.pk.bet} <small>{ante * 2}</small>
+              </button>
+            </motion.div>
+          ) : settled && player ? (
             <motion.p
               key="net"
               className={`bj-net is-${player.payout > player.totalBet ? 'up' : player.payout < player.totalBet ? 'down' : 'even'}`}

@@ -6,6 +6,72 @@ import { useTestServer } from './lobbyClient.js';
 const { create, join, waitFor, nextError } =
   useTestServer<PokerRoomState>('poker-party');
 
+test('late Poker clients watch until the next round and final-round arrivals return as players', async () => {
+  const host = await create('Host');
+  const watcher = await join(host.roomId, 'Watcher');
+  watcher.send('spectate', true);
+  host.send('settings', {
+    ...defaultPokerSettings,
+    rounds: 2,
+    bettingSeconds: 30,
+  });
+  await waitFor(
+    host,
+    (state) =>
+      state.settings.rounds === 2 &&
+      state.players.get(watcher.sessionId)?.spectator === true,
+  );
+  host.send('ready', true);
+  await waitFor(
+    host,
+    (state) => state.players.get(host.sessionId)?.ready === true,
+  );
+  host.send('start');
+  await waitFor(host, (state) => state.phase === 'playing');
+  const late = await join(host.roomId, 'Late');
+  assert.equal(late.state.players.get(late.sessionId)?.waitingForRound, true);
+  assert.equal(late.state.game.players.has(late.sessionId), false);
+  const rejected = nextError(late, 'poker-error');
+  late.send('bet', { ante: 25 });
+  assert.equal(await rejected, 'not-available');
+  host.send('bet', { ante: 25 });
+  await waitFor(host, (state) => state.game.stage === 'ultimate-preflop');
+  host.send('action', 'raise4');
+  await waitFor(late, (state) => state.game.round === 2, 15000);
+  assert.equal(late.state.players.get(late.sessionId)?.spectator, false);
+  assert.equal(late.state.players.get(late.sessionId)?.waitingForRound, false);
+  assert.equal(late.state.players.get(watcher.sessionId)?.spectator, true);
+  assert.equal(late.state.game.players.has(watcher.sessionId), false);
+  assert.equal(
+    JSON.parse(late.state.game.players.get(late.sessionId)!).chips,
+    defaultPokerSettings.startingChips,
+  );
+  const final = await join(host.roomId, 'Final round');
+  const gone = await join(host.roomId, 'Leaving');
+  await gone.leave();
+  await waitFor(host, (state) => !state.players.has(gone.sessionId));
+  host.send('bet', { ante: 25 });
+  late.send('bet', { ante: 25 });
+  await waitFor(host, (state) => state.game.stage === 'ultimate-preflop');
+  host.send('action', 'raise4');
+  await waitFor(late, (state) => state.game.activePlayerId === late.sessionId);
+  late.send('action', 'raise4');
+  await waitFor(final, (state) => state.phase === 'results', 15000);
+  assert.equal(final.state.game.players.has(final.sessionId), false);
+  assert.equal(final.state.game.players.has(gone.sessionId), false);
+  assert.ok(!JSON.parse(final.state.game.rankings).includes(final.sessionId));
+  const after = await join(host.roomId, 'Results arrival');
+  host.send('return');
+  await waitFor(after, (state) => state.phase === 'lobby');
+  assert.equal(after.state.players.get(after.sessionId)?.spectator, false);
+  assert.equal(
+    after.state.players.get(final.sessionId)?.waitingForRound,
+    false,
+  );
+  assert.equal(after.state.players.get(final.sessionId)?.spectator, false);
+  assert.equal(after.state.players.get(watcher.sessionId)?.spectator, true);
+});
+
 test('a solo Ultimate Poker room starts and accepts the full decision path', async () => {
   const host = await create('Solo');
   host.send('settings', {

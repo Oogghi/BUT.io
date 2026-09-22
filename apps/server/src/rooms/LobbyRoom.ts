@@ -10,6 +10,7 @@ import {
   type JoinOptions,
   type LobbyErrorCode,
   type LobbyPhase,
+  type PublicTable,
 } from '@but/shared';
 import {
   equippedCosmetics,
@@ -25,6 +26,16 @@ const START_DELAY_MS = 1000;
 
 // ponytail: this process-local reservation is enough for the single-process server; use a shared allocator when scaling out.
 const reservedCodes = new Set<string>();
+// ponytail: same single-process assumption; move to room metadata + matchMaker.query when scaling out.
+const publicRooms = new Set<LobbyRoom<LobbyStateInstance>>();
+
+/** Public tables someone could join right now, fullest first. */
+export function listPublicTables(): PublicTable[] {
+  return [...publicRooms]
+    .map((room) => room.publicListing())
+    .filter((table) => table !== null)
+    .sort((a, b) => b.players - a.players);
+}
 
 const LobbyPlayerSchema = schema(
   {
@@ -33,6 +44,7 @@ const LobbyPlayerSchema = schema(
     cosmetics: t.string(),
     ready: t.boolean(),
     spectator: t.boolean(),
+    waitingForRound: t.boolean(),
   },
   'LobbyPlayer',
 );
@@ -46,6 +58,7 @@ export const LobbyStateSchema = schema(
     hostId: t.string(),
     players: t.map(LobbyPlayerSchema),
     resultReason: t.string(),
+    isPublic: t.boolean(),
   },
   'LobbyState',
 );
@@ -105,6 +118,29 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   protected abstract endMatch(): void;
   /** A player left mid-match. */
   protected abstract leaveMatch(id: string): void;
+  /** Card tables can admit viewers and seat them at the next round boundary. */
+  protected allowsMidMatchJoin(): boolean {
+    return false;
+  }
+  protected joinMatch(_id: string): void {}
+
+  protected seatWaitingPlayers(ids: Iterable<string>) {
+    for (const id of ids) {
+      const player = this.state.players.get(id);
+      if (player?.waitingForRound) {
+        player.waitingForRound = false;
+        player.spectator = false;
+      }
+    }
+  }
+
+  private canJoin() {
+    return (
+      this.state.phase === 'lobby' ||
+      (this.allowsMidMatchJoin() &&
+        (this.state.phase === 'playing' || this.state.phase === 'results'))
+    );
+  }
   /** Builds the server-authoritative result while the finished match is still available. */
   protected abstract buildMatchResult(
     matchId: string,
@@ -138,6 +174,24 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.onMessage('kick', (client, target: unknown) =>
       this.handleKick(client, target),
     );
+    this.onMessage('visibility', (client, isPublic: unknown) =>
+      this.handleVisibility(client, isPublic),
+    );
+  }
+
+  /** This table's entry on the join screen, or null while it can't take anyone. */
+  public publicListing(): PublicTable | null {
+    const host = this.state.players.get(this.state.hostId);
+    if (!host || !this.canJoin() || this.state.players.size >= this.capacity())
+      return null;
+    return {
+      code: this.state.code,
+      gameId: this.game.id,
+      hostName: host.displayName,
+      players: this.state.players.size,
+      capacity: this.capacity(),
+      phase: this.state.phase,
+    };
   }
 
   /** The shared fields of a fresh lobby state. */
@@ -148,11 +202,12 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
       phase: 'lobby' as LobbyPhase,
       hostId: '',
       resultReason: '',
+      isPublic: false,
     };
   }
 
   public async onAuth(client: Client, options: unknown) {
-    if (this.state.phase !== 'lobby')
+    if (!this.canJoin())
       throw new Error('lobby-closed' satisfies LobbyErrorCode);
     if (!validDisplayName((options as JoinOptions | undefined)?.displayName))
       throw new Error('invalid-name' satisfies LobbyErrorCode);
@@ -169,7 +224,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
 
   // Recheck the phase: a reserved seat may connect after the host starts.
   public onJoin(client: Client, options: JoinOptions) {
-    if (this.state.phase !== 'lobby') {
+    if (!this.canJoin()) {
       this.accountIds.delete(client.sessionId);
       this.cosmetics.delete(client.sessionId);
       throw new Error('lobby-closed' satisfies LobbyErrorCode);
@@ -193,10 +248,12 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
         avatar,
         cosmetics: this.cosmetics.get(client.sessionId) ?? '{}',
         ready: false,
-        spectator: false,
+        spectator: this.state.phase !== 'lobby',
+        waitingForRound: this.state.phase !== 'lobby',
       }),
     );
-    this.resetReady();
+    if (this.state.phase === 'playing') this.joinMatch(client.sessionId);
+    if (this.state.phase === 'lobby') this.resetReady();
   }
 
   public onDrop(client: Client) {
@@ -216,6 +273,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.startTimer = undefined;
     this.accountIds.clear();
     this.cosmetics.clear();
+    publicRooms.delete(this);
     reservedCodes.delete(this.state?.code ?? this.roomId);
   }
 
@@ -319,6 +377,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
         this.matchRecorded = false;
         // Spectators get no seat; they watch the synced state.
         this.startMatch(this.participants().map(([id]) => id));
+        if (this.allowsMidMatchJoin()) void this.unlock();
       }
     }, START_DELAY_MS);
   }
@@ -339,6 +398,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.state.phase = 'lobby';
     this.state.resultReason = '';
     this.endMatch();
+    this.seatWaitingPlayers(this.state.players.keys());
     this.activeMatchId = '';
     this.matchStartedAt = 0;
     this.matchRecorded = false;
@@ -365,6 +425,17 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.cosmetics.delete(target);
     kicked?.send('kicked');
     kicked?.leave(KICKED_CODE);
+  }
+
+  /** The host lists the table on the join screen, or takes it back off, in any phase. */
+  private handleVisibility(client: Client, value: unknown) {
+    if (typeof value !== 'boolean')
+      return this.sendError(client, 'invalid-payload');
+    if (client.sessionId !== this.state.hostId)
+      return this.sendError(client, 'host-only');
+    this.state.isPublic = value;
+    if (value) publicRooms.add(this);
+    else publicRooms.delete(this);
   }
 
   private async persistMatchResult() {

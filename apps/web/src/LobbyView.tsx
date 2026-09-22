@@ -274,6 +274,25 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 )}
               </div>
             )}
+            {/* The host lists the table under Join room; the others just see that it is. */}
+            {(host || state.isPublic) && (
+              <div className="settings-option settings-toggle public-toggle">
+                <span>
+                  <strong>{t.publicTable}</strong>
+                  <small>{t.publicTableHint}</small>
+                </span>
+                {host && (
+                  <button
+                    className="settings-toggle-control"
+                    type="button"
+                    role="switch"
+                    aria-checked={state.isPublic}
+                    aria-label={t.publicTable}
+                    onClick={() => send('visibility', !state.isPublic)}
+                  />
+                )}
+              </div>
+            )}
             {state.phase === 'lobby' && state.gameId === tankArena.id && (
               <TankTeamPicker
                 mode={state.teamMode}
@@ -362,6 +381,16 @@ export function LobbyView({ state, sessionId, send, leave, error }: Props) {
                 </span>
                 <h3>{t.hereWeGo}</h3>
               </div>
+            )}
+            {state.phase === 'playing' && self?.waitingForRound && (
+              <p className="spectating-note" role="status">
+                <Icon name="eye" />
+                {(state.gameId === 'blackjack-party' ||
+                  state.gameId === 'poker-party') &&
+                state.game.round >= state.settings.rounds
+                  ? t.joiningNextMatch
+                  : t.joiningNextRound}
+              </p>
             )}
             {state.phase === 'playing' && state.gameId === tankArena.id && (
               <TankArenaPlay

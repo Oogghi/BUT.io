@@ -30,6 +30,41 @@ const settings = (
   ...changes,
 });
 
+test('late Blackjack arrivals cannot play until the next round', () => {
+  const game = new BlackjackGame(['host'], settings({ rounds: 2 }), 0);
+  const deadline = game.deadline;
+  assert.equal(game.joinNextRound('late'), true);
+  assert.equal(game.joinNextRound('late'), false);
+  assert.equal(game.deadline, deadline);
+  assert.equal(game.players.has('late'), false);
+  const bet = { main: 10, perfectPairs: 0, twentyOnePlusThree: 0 };
+  assert.equal(game.placeBet('late', bet, 1), 'not-betting');
+  assert.equal(game.canRebuy('late'), 'not-betting');
+  assert.ok(game.act('late', 'hit', 1));
+  game.placeBet('host', bet, 2);
+  for (let step = 0; step < 50 && game.round === 1; step += 1)
+    game.expire(game.deadline);
+  assert.equal(game.round, 2);
+  assert.equal(game.stage, 'betting');
+  assert.equal(game.players.get('late')?.chips, 100);
+  assert.equal(game.players.get('late')?.roundsPlayed, 0);
+  assert.equal(game.placeBet('late', bet, game.deadline - 1), null);
+});
+
+test('waiting Blackjack departures and final-round viewers get no seat or ranking', () => {
+  for (const rounds of [1, 2]) {
+    const game = new BlackjackGame(['host'], settings({ rounds }), 0);
+    game.joinNextRound('late');
+    if (rounds === 2) game.leave('late', 1);
+    for (let step = 0; step < 100 && game.stage !== 'complete'; step += 1)
+      game.expire(game.deadline);
+    assert.equal(game.stage, 'complete');
+    assert.equal(game.players.has('late'), false);
+    assert.deepEqual(game.rankings, ['host']);
+    assert.equal(game.joinNextRound('after'), false);
+  }
+});
+
 test('aces count as 1 or 11 and soft hands are identified', () => {
   assert.deepEqual(handValue([card('A', 'spades'), card('6', 'clubs')]), {
     value: 17,

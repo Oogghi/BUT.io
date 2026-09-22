@@ -20,6 +20,62 @@ const settings = (changes: Partial<PokerSettings> = {}): PokerSettings => ({
   ...changes,
 });
 
+for (const mode of ['ultimate', 'holdem'] as const) {
+  test(`${mode}: late arrivals wait through the hand and receive a seat next round`, () => {
+    const game = new PokerGame(
+      ['a', 'b'],
+      settings({ mode, rounds: 2 }),
+      0,
+      () => 0.37,
+    );
+    const before = JSON.stringify({
+      stage: game.stage,
+      pot: game.pot,
+      deadline: game.deadline,
+    });
+    assert.equal(game.joinNextRound('late'), true);
+    assert.equal(game.joinNextRound('late'), false);
+    assert.equal(
+      JSON.stringify({
+        stage: game.stage,
+        pot: game.pot,
+        deadline: game.deadline,
+      }),
+      before,
+    );
+    assert.equal(game.players.has('late'), false);
+    assert.ok(game.placeBet('late', { ante: 25 }, 1));
+    assert.ok(game.act('late', 'call', 1));
+    for (let step = 0; step < 50 && game.round === 1; step += 1)
+      game.expire(game.deadline);
+    assert.equal(game.round, 2);
+    const late = game.players.get('late')!;
+    assert.ok(late);
+    assert.equal(late.departed, false);
+    assert.equal(late.chips + late.totalBet, game.settings.startingChips);
+    if (mode === 'ultimate')
+      assert.equal(
+        game.placeBet('late', { ante: 25 }, game.deadline - 1),
+        null,
+      );
+    else assert.equal(late.cards.length, 2);
+  });
+}
+
+test('waiting Poker departures and final-round viewers get no seat or ranking', () => {
+  for (const rounds of [1, 2]) {
+    const game = new PokerGame(['host'], settings({ rounds }), 0);
+    game.joinNextRound('late');
+    if (rounds === 2) game.leave('late', 1);
+    for (let step = 0; step < 100 && game.stage !== 'complete'; step += 1)
+      game.expire(game.deadline);
+    assert.equal(game.stage, 'complete');
+    assert.equal(game.players.has('late'), false);
+    assert.deepEqual(game.rankings, ['host']);
+    assert.equal(game.joinNextRound('after'), false);
+  }
+});
+
 test('best hand evaluator ranks a royal flush above a full house', () => {
   const royal = evaluateBest([
     card('A', 'spades'),

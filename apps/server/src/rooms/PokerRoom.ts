@@ -90,6 +90,15 @@ export class PokerRoom extends LobbyRoom<
     return pokerParty.maxPlayers;
   }
 
+  protected allowsMidMatchJoin() {
+    return true;
+  }
+
+  protected joinMatch(id: string) {
+    this.match?.joinNextRound(id);
+    this.sync();
+  }
+
   protected minimumPlayers() {
     return this.state.settings.mode === 'holdem' ? 2 : 1;
   }
@@ -211,6 +220,7 @@ export class PokerRoom extends LobbyRoom<
   private sync() {
     const match = this.match;
     if (!match) return;
+    this.seatWaitingPlayers(match.players.keys());
     const game = this.state.game;
     for (const id of match.order)
       game.players.set(id, JSON.stringify(match.publicPlayer(id)));

@@ -471,6 +471,19 @@ const en = {
   modeGroup: 'Choose create or join',
   createRoom: 'Create room',
   joinRoom: 'Join room',
+  openTables: 'Open tables',
+  noOpenTables:
+    'No open tables right now. Ask a friend for a code, or make your own table public.',
+  tableOf: (host: string) => `${host}’s table`,
+  tableSeats: (players: number, capacity: number) =>
+    `${players}/${capacity} players`,
+  tableInGame: 'In game',
+  tableOpen: 'Open',
+  tablesLive: (count: number) =>
+    count === 1 ? '1 table live' : `${count} tables live`,
+  joinTable: 'Join',
+  publicTable: 'Public table',
+  publicTableHint: 'Anyone can find it under Join room.',
   lobbyCode: 'Lobby code',
   copyInvite: 'Copy invite link',
   inviteCopied: 'Invite link copied',
@@ -499,6 +512,9 @@ const en = {
   playInstead: 'Play instead',
   spectating: 'Spectating',
   spectatingNote: 'You’re watching this round.',
+  joiningNextRound: 'You’re spectating. You’ll join automatically next round.',
+  joiningNextMatch:
+    'You’re spectating the final round. You can play in the next match.',
   requirement: (min: number) =>
     min > 1 ? `${min}+ players. Everyone ready.` : 'Everyone ready.',
   startSession: 'Start session',
@@ -1080,6 +1096,18 @@ const fr: typeof en = {
   modeGroup: 'Créer ou rejoindre',
   createRoom: 'Créer',
   joinRoom: 'Rejoindre',
+  openTables: 'Tables ouvertes',
+  noOpenTables:
+    'Aucune table ouverte pour le moment. Demande un code à un ami, ou rends ta table publique.',
+  tableOf: (host) => `Table de ${host}`,
+  tableSeats: (players, capacity) => `${players}/${capacity} joueurs`,
+  tableInGame: 'En partie',
+  tableOpen: 'Ouverte',
+  tablesLive: (count) =>
+    count === 1 ? '1 table en ligne' : `${count} tables en ligne`,
+  joinTable: 'Rejoindre',
+  publicTable: 'Table publique',
+  publicTableHint: 'Tout le monde peut la trouver dans Rejoindre.',
   lobbyCode: 'Code du salon',
   copyInvite: 'Copier le lien d’invitation',
   inviteCopied: 'Lien d’invitation copié',
@@ -1108,6 +1136,10 @@ const fr: typeof en = {
   playInstead: 'Jouer plutôt',
   spectating: 'Spectateur',
   spectatingNote: 'Tu regardes cette partie.',
+  joiningNextRound:
+    'Tu es spectateur. Tu rejoindras automatiquement la prochaine manche.',
+  joiningNextMatch:
+    'Tu regardes la dernière manche. Tu pourras jouer à la prochaine partie.',
   requirement: (min) =>
     min > 1
       ? `${min} joueurs minimum. Tout le monde prêt.`

@@ -105,5 +105,7 @@ export function useTestServer<State extends LobbyState>(roomName: string) {
     });
   }
 
-  return { create, join, waitFor, nextError };
+  // The server's HTTP origin, for testing plain routes such as `/tables`.
+  const url = () => endpoint;
+  return { create, join, waitFor, nextError, url };
 }

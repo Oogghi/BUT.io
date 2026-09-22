@@ -2152,6 +2152,31 @@ input[aria-invalid='true'] {
   width: 100%;
   accent-color: var(--sun);
 }
+/* Common raise sizes, one tap each; they only move the slider, the raise button sends. */
+.poker-raise-presets {
+  display: flex;
+  gap: 6px;
+}
+.poker-raise-presets button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.poker-raise-presets button.is-current {
+  color: var(--ink);
+  background: var(--sun);
+  box-shadow: none;
+}
 .bj-action.is-raise {
   color: var(--ink);
   background: var(--sun);
@@ -7257,4 +7282,283 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
   gap: 8px;
   align-items: center;
   margin-top: 18px;
+}
+
+/* Public tables: the host's switch in the lobby, and the Join room popup. */
+.community-drawer.is-popup {
+  top: 50%;
+  right: auto;
+  left: 50%;
+  width: min(520px, calc(100% - 24px));
+  height: auto;
+  max-height: calc(100dvh - 24px);
+  translate: -50% -50%;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #6cc4ff26, transparent),
+    #0b1d2b;
+}
+/* The code field sits under the list, as the fallback for private tables. */
+.join-popup-code {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.join-popup-code > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.join-popup-body > .notice {
+  margin: 0 0 12px;
+}
+.public-toggle {
+  margin-top: 14px;
+  cursor: default;
+}
+.open-tables {
+  display: grid;
+  gap: 12px;
+}
+/* A heartbeat next to the count: the list is live and refreshes on its own. */
+.open-tables-live {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--mint);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.open-tables-live span {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mint);
+}
+.open-tables-live span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  animation: open-tables-ping 1.6s ease-out infinite;
+}
+@keyframes open-tables-ping {
+  to {
+    opacity: 0;
+    scale: 2.6;
+  }
+}
+.open-tables ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.open-tables li button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 12px 10px 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  color: inherit;
+  background:
+    radial-gradient(
+      circle at 0 50%,
+      color-mix(in srgb, var(--accent) 26%, transparent),
+      transparent 55%
+    ),
+    var(--surface);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--accent) 38%, var(--line)),
+    0 5px 0 var(--shadow-deep);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    translate 0.2s var(--pop),
+    box-shadow 0.2s ease;
+}
+/* A sheen sweeps across the row on hover, like light catching a card. */
+.open-tables li button::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -60%;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, #ffffff14, transparent);
+  translate: 0 0;
+  pointer-events: none;
+}
+.open-tables li button:is(:hover, :focus-visible):not(:disabled) {
+  translate: 0 -3px;
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 8px 0 var(--shadow-deep),
+    0 12px 32px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.open-tables li button:is(:hover, :focus-visible):not(:disabled)::after {
+  translate: 400% 0;
+  transition: translate 0.7s ease;
+}
+.open-tables li button:active:not(:disabled) {
+  translate: 0 2px;
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 2px 0 var(--shadow-deep);
+}
+.open-tables-art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  background: radial-gradient(
+    circle at 50% 35%,
+    color-mix(in srgb, var(--accent) 70%, #fff 10%),
+    var(--accent-shadow)
+  );
+  box-shadow:
+    inset 0 -4px 0 #0000002e,
+    0 4px 0 var(--accent-shadow);
+  transition: rotate 0.25s var(--pop);
+}
+.open-tables-art img {
+  width: 118%;
+  height: 118%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 4px #00000059);
+  transition: scale 0.25s var(--pop);
+}
+.open-tables li button:is(:hover, :focus-visible) .open-tables-art {
+  rotate: -6deg;
+}
+.open-tables li button:is(:hover, :focus-visible) .open-tables-art img {
+  scale: 1.1;
+}
+.open-tables-info {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.open-tables-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+.open-tables-game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.open-tables-status {
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--mint);
+  background: #45dcae1f;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.open-tables-status.is-playing {
+  color: var(--sun);
+  background: #ffc43d1f;
+}
+.open-tables-seats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+.open-tables-seats i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px #ffffff2e;
+}
+.open-tables-seats i.is-taken {
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.open-tables-seats small {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.open-tables-join {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: var(--accent);
+  box-shadow: 0 3px 0 var(--accent-shadow);
+  font-size: 13px;
+  font-weight: 900;
+}
+.open-tables-join svg {
+  width: 14px;
+  height: 14px;
+  transition: translate 0.2s var(--pop);
+}
+.open-tables li button:is(:hover, :focus-visible) .open-tables-join svg {
+  translate: 3px 0;
+}
+.open-tables-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 22px 12px 8px;
+  text-align: center;
+}
+.open-tables-empty > span {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 2px dashed var(--line);
+  border-radius: 50%;
+  color: var(--sky);
+  animation: open-tables-float 3s ease-in-out infinite;
+}
+.open-tables-empty svg {
+  width: 28px;
+  height: 28px;
+}
+@keyframes open-tables-float {
+  50% {
+    translate: 0 -5px;
+  }
+}
+.open-tables-empty p {
+  max-width: 320px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .open-tables-live span::after,
+  .open-tables-empty > span {
+    animation: none;
+  }
 }

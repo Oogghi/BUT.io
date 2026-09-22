@@ -16,6 +16,8 @@ export interface LobbyPlayer {
   ready: boolean;
   /** Watches the next rounds instead of playing; never needs to be ready. */
   spectator: boolean;
+  /** Late arrival watching until the next card round (or next match if it ends). */
+  waitingForRound?: boolean;
 }
 
 /** What a client sends when creating or joining a lobby. */
@@ -38,6 +40,19 @@ export interface LobbyState {
   hostId: string;
   players: ReadonlyMap<string, LobbyPlayer>;
   resultReason: string;
+  /** Host-chosen: listed on the join screen so anyone can find it without a code. */
+  isPublic: boolean;
+}
+
+/** A joinable public table, as the server lists it at `GET /tables`. */
+export interface PublicTable {
+  code: string;
+  gameId: string;
+  hostName: string;
+  players: number;
+  capacity: number;
+  /** `playing`/`results` only for card tables that seat newcomers next round. */
+  phase: LobbyPhase;
 }
 
 /**

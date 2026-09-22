@@ -14,12 +14,15 @@ export function Drawer({
   onClose,
   label,
   id,
+  popup = false,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   label: string;
   id?: string;
+  /** Centred on the screen instead of sliding in from the side. */
+  popup?: boolean;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -71,9 +74,13 @@ export function Drawer({
           onClick={onClose}
         />
         <motion.div
-          className="community-drawer"
+          className={`community-drawer${popup ? ' is-popup' : ''}`}
           initial={false}
-          animate={{ x: open || reduced ? 0 : 24 }}
+          animate={
+            popup
+              ? { y: open || reduced ? 0 : 16 }
+              : { x: open || reduced ? 0 : 24 }
+          }
           transition={{ duration: reduced ? 0 : 0.2 }}
         >
           {(open || present) && children}

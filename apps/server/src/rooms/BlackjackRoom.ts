@@ -119,6 +119,15 @@ export class BlackjackRoom extends LobbyRoom<
     return blackjackParty.maxPlayers;
   }
 
+  protected allowsMidMatchJoin() {
+    return true;
+  }
+
+  protected joinMatch(id: string) {
+    this.match?.joinNextRound(id);
+    this.sync();
+  }
+
   public onCreate() {
     super.onCreate();
     this.onMessage('settings', (client, payload: unknown) =>
@@ -288,6 +297,7 @@ export class BlackjackRoom extends LobbyRoom<
   private sync() {
     const match = this.match;
     if (!match) return;
+    this.seatWaitingPlayers(match.players.keys());
     const game = this.state.game;
     for (const id of match.order)
       game.players.set(id, JSON.stringify(match.publicPlayer(id)));
