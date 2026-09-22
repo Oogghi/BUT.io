@@ -6868,6 +6868,8 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     --seat-headroom: 150px;
     display: flex;
     flex-direction: column;
+    /* Dealer at the far side, seats at the near edge, whatever the felt's height. */
+    justify-content: space-between;
     aspect-ratio: auto;
     max-height: none;
     margin: 10px 0 14px;
@@ -6957,6 +6959,13 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     inset: auto;
     translate: none;
     margin-top: 6px;
+  }
+}
+/* A phone gives the round the whole screen: the felt grows into the space left
+   around it, so the dock rests on the bottom edge instead of floating mid-screen. */
+@media (max-width: 620px) {
+  .blackjack-table .bj-felt {
+    min-height: calc(100dvh - var(--bj-phone-chrome));
   }
 }
 @supports (animation-timeline: view()) {
