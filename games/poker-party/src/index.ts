@@ -30,9 +30,20 @@ export interface PokerSettings {
   showAllCards: boolean;
 }
 
+/** Shared lobby/server bounds; values fit the room wire schema. */
+export const pokerSettingsLimits = {
+  rounds: { min: 1, max: 100 },
+  startingChips: { min: 100, max: 1000000 },
+  ante: { min: 1, max: 1000000 },
+  smallBlind: { min: 1, max: 1000000 },
+  bigBlind: { min: 1, max: 1000000 },
+  minRaise: { min: 1, max: 1000000 },
+  bettingSeconds: { min: 5, max: 240 },
+} as const;
+
 export const defaultPokerSettings: Readonly<PokerSettings> = {
   mode: 'ultimate',
-  rounds: 3,
+  rounds: 20,
   startingChips: 1000,
   ante: 25,
   smallBlind: 25,

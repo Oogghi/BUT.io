@@ -1,5 +1,6 @@
 import {
   defaultPokerSettings,
+  pokerSettingsLimits,
   pokerParty,
   type Card,
   type PokerAction,
@@ -874,15 +875,7 @@ export function parsePokerSettings(value: unknown): PokerSettings | null {
   )
     return null;
   if (!['ultimate', 'holdem'].includes(String(input.mode))) return null;
-  for (const [key, min, max] of [
-    ['rounds', 1, 20],
-    ['startingChips', 100, 100000],
-    ['ante', 1, 100000],
-    ['smallBlind', 1, 100000],
-    ['bigBlind', 1, 100000],
-    ['minRaise', 1, 100000],
-    ['bettingSeconds', 5, 120],
-  ] as const)
+  for (const [key, { min, max }] of Object.entries(pokerSettingsLimits))
     if (
       !Number.isInteger(input[key]) ||
       (input[key] as number) < min ||

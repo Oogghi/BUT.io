@@ -280,7 +280,7 @@ test('settings reject malformed values, unsupported dictionaries and unsafe capa
     { minTurnSeconds: 1.5 },
     { maxPromptAge: 0 },
     { startingLives: 4 },
-    { maxLives: 99 },
+    { maxLives: 101 },
     { maxPlayers: 2 },
     { bonusAlphabet: 'a!' },
     { unknown: true },

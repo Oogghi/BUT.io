@@ -9,6 +9,34 @@ import { useTestServer } from './lobbyClient.js';
 const { create, join, waitFor, nextError } =
   useTestServer<BlackjackRoomState>('blackjack-party');
 
+test('extended settings reach Blackjack guests and new rooms use requested defaults', async () => {
+  const host = await create('Host');
+  assert.equal(host.state.settings.rounds, 20);
+  assert.equal(host.state.settings.maxBet, 500);
+  assert.equal(host.state.settings.maxSplits, 10);
+  const guest = await join(host.roomId, 'Guest');
+  host.send('settings', {
+    ...defaultBlackjackSettings,
+    rounds: 50,
+    maxSplits: 15,
+    decks: 32,
+    bettingSeconds: 240,
+    actionSeconds: 240,
+    maxRebuys: 100,
+    startingChips: 1000000,
+    maxBet: 1000000,
+    maxSideBet: 1000000,
+  });
+  await waitFor(guest, (state) => state.settings.rounds === 50);
+  assert.equal(guest.state.settings.maxSplits, 15);
+  assert.equal(guest.state.settings.decks, 32);
+  assert.equal(guest.state.settings.bettingSeconds, 240);
+  assert.equal(guest.state.settings.actionSeconds, 240);
+  assert.equal(guest.state.settings.maxRebuys, 100);
+  assert.equal(guest.state.settings.maxBet, 1000000);
+  assert.equal(guest.state.settings.maxSideBet, 1000000);
+});
+
 test('late Blackjack client watches, then joins round two; voluntary spectators stay out', async () => {
   const host = await create('Host');
   const watcher = await join(host.roomId, 'Watcher');

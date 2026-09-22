@@ -249,7 +249,10 @@ test('bet, action, settings, and rebuy boundaries are enforced', () => {
     defaultBlackjackSettings,
   );
   assert.equal(
-    parseBlackjackSettings({ ...defaultBlackjackSettings, minBet: 500 }),
+    parseBlackjackSettings({
+      ...defaultBlackjackSettings,
+      minBet: defaultBlackjackSettings.maxBet + 1,
+    }),
     null,
   );
   assert.equal(

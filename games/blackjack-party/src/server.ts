@@ -1,6 +1,7 @@
 import {
   blackjackParty,
   defaultBlackjackSettings,
+  blackjackSettingsLimits,
   type BlackjackActionError,
   type BlackjackBet,
   type BlackjackHandState,
@@ -62,29 +63,7 @@ export function parseBlackjackSettings(
     )
   )
     return null;
-  for (const [key, min, max] of [
-    ['rounds', 1, 20],
-    ['startingChips', 100, 100000],
-    ['minBet', 1, 100000],
-    ['maxBet', 1, 100000],
-    ['decks', 1, 8],
-    ['maxSplits', 0, 6],
-    ['minSideBet', 1, 10000],
-    ['maxSideBet', 1, 10000],
-    ['perfectPairMixedPayout', 1, 500],
-    ['perfectPairColoredPayout', 1, 500],
-    ['perfectPairPayout', 1, 500],
-    ['twentyOnePlusThreeFlushPayout', 1, 500],
-    ['twentyOnePlusThreeStraightPayout', 1, 500],
-    ['twentyOnePlusThreeTripsPayout', 1, 500],
-    ['twentyOnePlusThreeStraightFlushPayout', 1, 500],
-    ['twentyOnePlusThreeSuitedTripsPayout', 1, 500],
-    ['bettingSeconds', 5, 120],
-    ['actionSeconds', 5, 120],
-    ['rebuyChipAmount', 1, 100000],
-    ['rebuyCost', 1, 100000],
-    ['maxRebuys', 0, 10],
-  ] as const) {
+  for (const [key, { min, max }] of Object.entries(blackjackSettingsLimits)) {
     if (!integer(input[key], min, max)) return null;
   }
   for (const key of [

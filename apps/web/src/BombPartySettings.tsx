@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type {
-  BombPartySettings as Settings,
-  BombPartySend,
+import {
+  bombPartySettingsLimits as limits,
+  type BombPartySettings as Settings,
+  type BombPartySend,
 } from '@but/bomb-party';
 import { t } from './i18n';
 
@@ -56,11 +57,31 @@ export function BombPartySettings({
             </label>
             {(
               [
-                ['minTurnSeconds', t.bp.minimum, 1, 30],
-                ['maxPromptAge', t.bp.age, 1, 20],
+                [
+                  'minTurnSeconds',
+                  t.bp.minimum,
+                  limits.minTurnSeconds.min,
+                  limits.minTurnSeconds.max,
+                ],
+                [
+                  'maxPromptAge',
+                  t.bp.age,
+                  limits.maxPromptAge.min,
+                  limits.maxPromptAge.max,
+                ],
                 ['startingLives', t.bp.startLives, 1, draft.maxLives],
-                ['maxLives', t.bp.maxLives, draft.startingLives, 10],
-                ['maxPlayers', t.bp.maxPlayers, Math.max(2, players), 8],
+                [
+                  'maxLives',
+                  t.bp.maxLives,
+                  draft.startingLives,
+                  limits.maxLives.max,
+                ],
+                [
+                  'maxPlayers',
+                  t.bp.maxPlayers,
+                  Math.max(limits.maxPlayers.min, players),
+                  limits.maxPlayers.max,
+                ],
               ] as const
             ).map(([key, label, min, max]) => (
               <label key={key}>

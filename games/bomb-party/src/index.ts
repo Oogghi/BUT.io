@@ -20,6 +20,15 @@ export interface BombPartySettings {
   bonusAlphabet: string;
 }
 
+/** Shared lobby/server bounds; values fit the room wire schema. */
+export const bombPartySettingsLimits = {
+  minTurnSeconds: { min: 1, max: 120 },
+  maxPromptAge: { min: 1, max: 100 },
+  startingLives: { min: 1, max: 100 },
+  maxLives: { min: 1, max: 100 },
+  maxPlayers: { min: 2, max: 8 },
+} as const;
+
 export const defaultSettings: Readonly<BombPartySettings> = {
   dictionary: 'fr',
   difficulty: 'easy',

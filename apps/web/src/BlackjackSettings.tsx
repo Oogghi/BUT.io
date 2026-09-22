@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type {
-  BlackjackSend,
-  BlackjackSettings as Settings,
+import {
+  blackjackSettingsLimits as limits,
+  type BlackjackSend,
+  type BlackjackSettings as Settings,
 } from '@but/blackjack-party';
 import { t } from './i18n';
 
@@ -43,15 +44,13 @@ export function BlackjackSettings({
             <NumberField
               label={t.bj.rounds}
               value={draft.rounds}
-              min={1}
-              max={20}
+              {...limits.rounds}
               onChange={(value) => number('rounds', value)}
             />
             <NumberField
               label={t.bj.startingChips}
               value={draft.startingChips}
-              min={100}
-              max={100000}
+              {...limits.startingChips}
               onChange={(value) => number('startingChips', value)}
             />
             <NumberField
@@ -71,15 +70,13 @@ export function BlackjackSettings({
             <NumberField
               label={t.bj.bettingTimer}
               value={draft.bettingSeconds}
-              min={5}
-              max={120}
+              {...limits.bettingSeconds}
               onChange={(value) => number('bettingSeconds', value)}
             />
             <NumberField
               label={t.bj.actionTimer}
               value={draft.actionSeconds}
-              min={5}
-              max={120}
+              {...limits.actionSeconds}
               onChange={(value) => number('actionSeconds', value)}
             />
           </SettingsGroup>
@@ -87,8 +84,7 @@ export function BlackjackSettings({
             <NumberField
               label={t.bj.decks}
               value={draft.decks}
-              min={1}
-              max={8}
+              {...limits.decks}
               onChange={(value) => number('decks', value)}
             />
             <label>
@@ -127,8 +123,7 @@ export function BlackjackSettings({
             <NumberField
               label={t.bj.maxSplits}
               value={draft.maxSplits}
-              min={0}
-              max={6}
+              {...limits.maxSplits}
               disabled={!draft.allowSplit}
               onChange={(value) => number('maxSplits', value)}
             />
@@ -189,24 +184,21 @@ export function BlackjackSettings({
             <NumberField
               label={t.bj.rebuyAmount}
               value={draft.rebuyChipAmount}
-              min={1}
-              max={100000}
+              {...limits.rebuyChipAmount}
               disabled={!draft.rebuysEnabled}
               onChange={(value) => number('rebuyChipAmount', value)}
             />
             <NumberField
               label={t.bj.rebuyCost}
               value={draft.rebuyCost}
-              min={1}
-              max={100000}
+              {...limits.rebuyCost}
               disabled={!draft.rebuysEnabled}
               onChange={(value) => number('rebuyCost', value)}
             />
             <NumberField
               label={t.bj.maxRebuys}
               value={draft.maxRebuys}
-              min={0}
-              max={10}
+              {...limits.maxRebuys}
               disabled={!draft.rebuysEnabled}
               onChange={(value) => number('maxRebuys', value)}
             />
@@ -321,8 +313,7 @@ function PayoutFields({
       key={key}
       label={`${label} : 1`}
       value={draft[key]}
-      min={1}
-      max={500}
+      {...limits[key]}
       onChange={(value) => number(key, value)}
     />
   ));

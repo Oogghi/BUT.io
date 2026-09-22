@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 import {
   defaultSettings,
+  bombPartySettingsLimits,
   normalizeWord,
   type BombPartySettings,
   type BombPartyPlayerState,
@@ -87,13 +88,7 @@ export function parseSettings(
     !['easy', 'normal', 'hard'].includes(String(input.difficulty))
   )
     return null;
-  for (const [key, min, max] of [
-    ['minTurnSeconds', 1, 30],
-    ['maxPromptAge', 1, 20],
-    ['startingLives', 1, 10],
-    ['maxLives', 1, 10],
-    ['maxPlayers', Math.max(2, connectedPlayers), 8],
-  ] as const) {
+  for (const [key, { min, max }] of Object.entries(bombPartySettingsLimits)) {
     if (
       typeof input[key] !== 'number' ||
       !Number.isInteger(input[key]) ||
@@ -102,6 +97,7 @@ export function parseSettings(
     )
       return null;
   }
+  if ((input.maxPlayers as number) < connectedPlayers) return null;
   if ((input.startingLives as number) > (input.maxLives as number)) return null;
   if (
     typeof input.bonusAlphabet !== 'string' ||
@@ -198,10 +194,7 @@ export class BombPartyGame {
     player.wordsPlayed = (player.wordsPlayed ?? 0) + 1;
     player.wordsAccepted = (player.wordsAccepted ?? 0) + 1;
     player.currentStreak = (player.currentStreak ?? 0) + 1;
-    player.bestStreak = Math.max(
-      player.bestStreak ?? 0,
-      player.currentStreak,
-    );
+    player.bestStreak = Math.max(player.bestStreak ?? 0, player.currentStreak);
     player.lastWord = normalized;
     const covered = new Set(player.bonusLetters + normalized);
     player.bonusLetters = [...this.settings.bonusAlphabet]

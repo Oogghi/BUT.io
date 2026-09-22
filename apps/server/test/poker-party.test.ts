@@ -6,6 +6,21 @@ import { useTestServer } from './lobbyClient.js';
 const { create, join, waitFor, nextError } =
   useTestServer<PokerRoomState>('poker-party');
 
+test('extended settings reach Poker guests and new rooms default to 20 rounds', async () => {
+  const host = await create('Host');
+  assert.equal(host.state.settings.rounds, 20);
+  const guest = await join(host.roomId, 'Guest');
+  host.send('settings', {
+    ...defaultPokerSettings,
+    rounds: 50,
+    startingChips: 1000000,
+    bettingSeconds: 240,
+  });
+  await waitFor(guest, (state) => state.settings.rounds === 50);
+  assert.equal(guest.state.settings.startingChips, 1000000);
+  assert.equal(guest.state.settings.bettingSeconds, 240);
+});
+
 test('late Poker clients watch until the next round and final-round arrivals return as players', async () => {
   const host = await create('Host');
   const watcher = await join(host.roomId, 'Watcher');

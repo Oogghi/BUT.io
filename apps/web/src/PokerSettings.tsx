@@ -1,5 +1,9 @@
 import { t } from './i18n';
-import type { PokerMode, PokerSettings } from '@but/poker-party';
+import {
+  pokerSettingsLimits as limits,
+  type PokerMode,
+  type PokerSettings,
+} from '@but/poker-party';
 
 export function PokerSettingsPanel({
   settings,
@@ -58,8 +62,7 @@ export function PokerSettingsPanel({
           <span>{t.bj.rounds}</span>
           <input
             type="number"
-            min="1"
-            max="20"
+            {...limits.rounds}
             value={settings.rounds}
             disabled={!host}
             onChange={(event) => update({ rounds: Number(event.target.value) })}
@@ -69,7 +72,7 @@ export function PokerSettingsPanel({
           <span>{t.bj.startingChips}</span>
           <input
             type="number"
-            min="100"
+            {...limits.startingChips}
             value={settings.startingChips}
             disabled={!host}
             onChange={(event) =>
@@ -83,7 +86,12 @@ export function PokerSettingsPanel({
           </span>
           <input
             type="number"
-            min="1"
+            min={1}
+            max={
+              settings.mode === 'ultimate'
+                ? Math.floor(settings.startingChips / 4)
+                : settings.bigBlind
+            }
             value={
               settings.mode === 'ultimate' ? settings.ante : settings.smallBlind
             }
@@ -103,7 +111,8 @@ export function PokerSettingsPanel({
               <span>{t.pk.bigBlind}</span>
               <input
                 type="number"
-                min="1"
+                min={settings.smallBlind}
+                max={settings.startingChips}
                 value={settings.bigBlind}
                 disabled={!host}
                 onChange={(event) =>
@@ -115,7 +124,7 @@ export function PokerSettingsPanel({
               <span>{t.pk.minRaise}</span>
               <input
                 type="number"
-                min="1"
+                {...limits.minRaise}
                 value={settings.minRaise}
                 disabled={!host}
                 onChange={(event) =>

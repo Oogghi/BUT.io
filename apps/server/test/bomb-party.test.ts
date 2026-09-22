@@ -10,6 +10,30 @@ import { useTestServer } from './lobbyClient.js';
 const { create, join, waitFor, nextError } =
   useTestServer<LobbyState>('bomb-party');
 
+test('extended settings and 100 starting lives reach Bomb Party guests', async () => {
+  const host = await create('Host');
+  const guest = await join(host.roomId, 'Guest');
+  host.send('settings', {
+    ...defaultSettings,
+    startingLives: 100,
+    maxLives: 100,
+    minTurnSeconds: 120,
+    maxPromptAge: 100,
+  });
+  await waitFor(guest, (state) => state.settings.startingLives === 100);
+  assert.equal(guest.state.settings.maxLives, 100);
+  assert.equal(guest.state.settings.minTurnSeconds, 120);
+  assert.equal(guest.state.settings.maxPromptAge, 100);
+  host.send('ready', true);
+  guest.send('ready', true);
+  await waitFor(host, (state) =>
+    [...state.players.values()].every((player) => player.ready),
+  );
+  host.send('start');
+  await waitFor(guest, (state) => state.phase === 'playing');
+  assert.equal(guest.state.game.players.get(guest.sessionId)?.lives, 100);
+});
+
 test(
   'validates names, exposes six-character codes, and keeps codes distinct',
   { concurrency: false },

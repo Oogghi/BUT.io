@@ -51,18 +51,43 @@ export interface BlackjackSettings {
   maxRebuys: number;
 }
 
+/** Shared lobby/server bounds; values fit the room wire schema. */
+export const blackjackSettingsLimits = {
+  rounds: { min: 1, max: 100 },
+  startingChips: { min: 100, max: 1000000 },
+  minBet: { min: 1, max: 1000000 },
+  maxBet: { min: 1, max: 1000000 },
+  decks: { min: 1, max: 32 },
+  maxSplits: { min: 0, max: 20 },
+  minSideBet: { min: 1, max: 1000000 },
+  maxSideBet: { min: 1, max: 1000000 },
+  perfectPairMixedPayout: { min: 1, max: 1000 },
+  perfectPairColoredPayout: { min: 1, max: 1000 },
+  perfectPairPayout: { min: 1, max: 1000 },
+  twentyOnePlusThreeFlushPayout: { min: 1, max: 1000 },
+  twentyOnePlusThreeStraightPayout: { min: 1, max: 1000 },
+  twentyOnePlusThreeTripsPayout: { min: 1, max: 1000 },
+  twentyOnePlusThreeStraightFlushPayout: { min: 1, max: 1000 },
+  twentyOnePlusThreeSuitedTripsPayout: { min: 1, max: 1000 },
+  bettingSeconds: { min: 5, max: 240 },
+  actionSeconds: { min: 5, max: 240 },
+  rebuyChipAmount: { min: 1, max: 1000000 },
+  rebuyCost: { min: 1, max: 1000000 },
+  maxRebuys: { min: 0, max: 100 },
+} as const;
+
 export const defaultBlackjackSettings: Readonly<BlackjackSettings> = {
-  rounds: 5,
+  rounds: 20,
   startingChips: 1000,
   minBet: 25,
-  maxBet: 250,
+  maxBet: 500,
   decks: 6,
   shuffle: false,
   blackjackPayout: 1.5,
   dealerHitsSoft17: false,
   allowDouble: true,
   allowSplit: true,
-  maxSplits: 4,
+  maxSplits: 10,
   doubleAfterSplit: true,
   sideBetsEnabled: true,
   perfectPairsEnabled: true,
