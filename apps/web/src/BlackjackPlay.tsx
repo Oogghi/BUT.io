@@ -93,12 +93,39 @@ export function BlackjackPlay({
   );
   const shoe = useRef<HTMLDivElement>(null);
 
-  // Phones show the seats as a swipeable strip; whoever has to act slides to its
-  // centre, and you otherwise. Desktop seats never scroll, so there this is a no-op.
+  // Your seat is rendered on its own so phones can pin it at the near edge; the others
+  // share a swipeable strip across the felt. On desktop both lists overlay the same
+  // ring, so the split changes nothing there.
+  const yourSeat = seats.find((player) => player.id === sessionId);
+  const others = seats.filter((player) => player !== yourSeat);
+  const renderSeat = (player: LobbyPlayer) => {
+    const index = seats.indexOf(player);
+    return (
+      <Seat
+        key={player.id}
+        player={player}
+        hand={game.players.get(player.id)}
+        position={seatPosition(index, seats.length)}
+        active={game.activePlayerId === player.id}
+        activeHandIndex={game.activeHandIndex}
+        you={player.id === sessionId}
+        bet={player.id === sessionId && canBet ? bet : undefined}
+        settings={settings}
+        onBet={setBet}
+        deal={{ order: index, of: seats.length }}
+        onPlayerClick={onPlayerClick}
+      />
+    );
+  };
+
+  // Whoever else has to act slides to the strip's centre; otherwise it rests on the
+  // middle of the table. Desktop seats never scroll, so there this is a no-op.
   const seatList = useRef<HTMLUListElement>(null);
   const reduced = useReducedMotion();
   const focusId =
-    (game.stage === 'playing' && game.activePlayerId) || sessionId;
+    others.find((player) => player.id === game.activePlayerId)?.id ??
+    others[Math.floor((others.length - 1) / 2)]?.id ??
+    '';
   useEffect(() => {
     const list = seatList.current;
     const seat = list?.querySelector<HTMLElement>(
@@ -109,7 +136,7 @@ export function BlackjackPlay({
       left: seat.offsetLeft + seat.offsetWidth / 2 - list.clientWidth / 2,
       behavior: reduced ? 'auto' : 'smooth',
     });
-  }, [focusId, seats.length, reduced]);
+  }, [focusId, others.length, reduced]);
 
   return (
     <ShoeContext value={shoe}>
@@ -178,23 +205,11 @@ export function BlackjackPlay({
           </section>
 
           <ul className="bj-seats" ref={seatList}>
-            {seats.map((player, index) => (
-              <Seat
-                key={player.id}
-                player={player}
-                hand={game.players.get(player.id)}
-                position={seatPosition(index, seats.length)}
-                active={game.activePlayerId === player.id}
-                activeHandIndex={game.activeHandIndex}
-                you={player.id === sessionId}
-                bet={player.id === sessionId && canBet ? bet : undefined}
-                settings={settings}
-                onBet={setBet}
-                deal={{ order: index, of: seats.length }}
-                onPlayerClick={onPlayerClick}
-              />
-            ))}
+            {others.map(renderSeat)}
           </ul>
+          {yourSeat && (
+            <ul className="bj-seats is-own">{renderSeat(yourSeat)}</ul>
+          )}
         </div>
 
         <footer className="bj-dock" aria-live="polite">

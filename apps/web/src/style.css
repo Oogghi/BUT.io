@@ -4066,8 +4066,11 @@ input[aria-invalid='true'] {
   margin: 0;
   padding: 0;
   list-style: none;
+  /* Blackjack stacks your own list over the others'; only the seats take taps. */
+  pointer-events: none;
 }
 .bj-seat {
+  pointer-events: auto;
   position: absolute;
   left: calc(50% + var(--ring-x) * var(--seat-cos));
   top: calc(50% + var(--ring-y) * var(--seat-sin));
@@ -6856,16 +6859,14 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
   height: 70px;
 }
 
-/* Phones: the dealer across the felt, and the seats on a swipeable arc in front of
-   you. The seat in the middle is full size; its neighbours curve away around the
-   table and fade, so every hand stays whole instead of overlapping or boxing in.
-   Poker keeps its own oval layout. */
+/* Phones: the dealer at the far side, your seat pinned full size at the near edge,
+   and the other players on a swipeable arc between. The centre of the arc is full
+   size; its neighbours curve away around the table and fade, so every hand stays
+   whole instead of overlapping or boxing in. Poker keeps its own oval layout. */
 @media (max-width: 900px) {
   .blackjack-table .bj-felt {
-    --card-w: 50px;
+    --card-w: 44px;
     --seat-w: 50cqw;
-    /* Room above the seats for the bet popovers, which the strip would clip. */
-    --seat-headroom: 150px;
     display: flex;
     flex-direction: column;
     /* Dealer at the far side, seats at the near edge, whatever the felt's height. */
@@ -6904,14 +6905,13 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     inset: auto;
     display: flex;
     align-items: end;
-    margin-top: calc(var(--seat-headroom) * -1);
-    padding: var(--seat-headroom) calc((100cqw - var(--seat-w)) / 2) 4px;
+    /* Headroom for neighbours rising off the arc, which the strip would clip. */
+    padding: 28px calc((100cqw - var(--seat-w)) / 2) 4px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
-    /* The headroom lies over the dealer; let taps there fall through to the felt. */
-    pointer-events: none;
+    pointer-events: auto;
     mask-image: linear-gradient(
       to right,
       transparent,
@@ -6929,8 +6929,19 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     flex: none;
     width: var(--seat-w);
     translate: none;
-    pointer-events: auto;
     scroll-snap-align: center;
+  }
+  /* Your own seat never scrolls, shrinks or fades: it is where you play from. */
+  .blackjack-table .bj-seats.is-own {
+    justify-content: center;
+    margin-top: 10px;
+    padding: 12px 12px 0;
+    overflow: visible;
+    mask-image: none;
+  }
+  .blackjack-table .is-own .bj-seat {
+    --card-w: 56px;
+    width: 100%;
   }
   .blackjack-table .bj-seat-hands {
     flex-wrap: wrap;
@@ -6970,7 +6981,7 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
 }
 @supports (animation-timeline: view()) {
   @media (max-width: 900px) {
-    .blackjack-table .bj-seat {
+    .blackjack-table .bj-seats:not(.is-own) .bj-seat {
       animation: bj-seat-orbit linear both;
       animation-timeline: view(inline);
       transform-origin: 50% 100%;
