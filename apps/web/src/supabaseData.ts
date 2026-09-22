@@ -97,7 +97,7 @@ export interface RewardState {
   coins: number;
   ownedCosmetics: PersistedCosmeticId[];
   equippedCosmetic: PersistedCosmeticId | null;
-  /** Derived rendering state; the database persists only the frame. */
+  /** Owned equipment normalized from the migrated wallet slots. */
   equippedCosmetics: CosmeticLoadout;
 }
 
@@ -105,6 +105,7 @@ interface WalletRow {
   user_id: string;
   coins: number;
   equipped_cosmetic: string | null;
+  equipped_cosmetics: unknown;
 }
 
 interface CosmeticRow {
@@ -636,18 +637,17 @@ function normalizeRewardState(
   const ownedCosmetics = owned
     .map((row) => row.cosmetic_id)
     .filter(isPersistedCosmeticId);
-  const equippedCosmetic =
-    isPersistedCosmeticId(wallet?.equipped_cosmetic) &&
-    ownedCosmetics.includes(wallet.equipped_cosmetic)
-      ? wallet.equipped_cosmetic
-      : null;
+  const equippedCosmetics = normalizeCosmeticLoadout(
+    wallet?.equipped_cosmetics,
+    ownedCosmetics,
+  );
+  const equippedCosmetic = isPersistedCosmeticId(equippedCosmetics.frame)
+    ? equippedCosmetics.frame
+    : null;
   return {
     coins: Math.max(0, number(wallet?.coins)),
     ownedCosmetics,
-    equippedCosmetics: normalizeCosmeticLoadout(
-      { frame: equippedCosmetic },
-      ownedCosmetics,
-    ),
+    equippedCosmetics,
     equippedCosmetic,
   };
 }
@@ -657,7 +657,7 @@ export async function loadRewardState(userId: string): Promise<RewardState> {
   const [walletResult, ownedResult] = await Promise.all([
     db
       .from('player_wallets')
-      .select('user_id, coins, equipped_cosmetic')
+      .select('user_id,coins,equipped_cosmetic,equipped_cosmetics')
       .eq('user_id', userId)
       .maybeSingle(),
     db
@@ -708,14 +708,15 @@ export async function setEquippedCosmetic(
   slot: CosmeticSlot = 'frame',
 ): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
   if (
-    slot !== 'frame' ||
+    slot === 'avatar' ||
     (cosmeticId !== null && !isPersistedCosmeticId(cosmeticId))
   )
     throw new DataLayerError(
       'cosmetic-not-found',
       'That cosmetic is unavailable.',
     );
-  const { data, error } = await client().rpc('set_equipped_cosmetic', {
+  const { data, error } = await client().rpc('set_cosmetic_slot', {
+    p_slot: slot,
     p_cosmetic_id: cosmeticId,
   });
   rewardFailure(error);

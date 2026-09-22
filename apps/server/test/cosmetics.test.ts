@@ -5,7 +5,14 @@ import type { TankArenaRoomState } from '@but/tank-arena';
 
 const accountId = '00000000-0000-4000-8000-000000000001';
 let equipped: unknown = 'coral-frame';
-const owned = ['coral-frame', 'mint-frame'];
+const owned = [
+  'coral-frame',
+  'mint-frame',
+  'midnight-cards',
+  'velvet-deal',
+  'lightning-decal',
+];
+let equippedSlots: unknown = undefined;
 let failedTable = '';
 let profileExists = true;
 const reads: { table: string; userId: string | null; select: string | null }[] =
@@ -32,7 +39,10 @@ const supabase = createServer((request, response) => {
     userId: url.searchParams.get(table === 'profiles' ? 'id' : 'user_id'),
     select,
   });
-  if (table === 'player_wallets' && select !== 'equipped_cosmetic') {
+  if (
+    table === 'player_wallets' &&
+    select !== 'equipped_cosmetic,equipped_cosmetics'
+  ) {
     response.statusCode = 400;
     response.end(
       JSON.stringify({ code: '42703', message: 'Unknown wallet column' }),
@@ -48,6 +58,7 @@ const supabase = createServer((request, response) => {
     response.end(
       JSON.stringify({
         equipped_cosmetic: equipped,
+        equipped_cosmetics: equippedSlots ?? { frame: equipped },
       }),
     );
   } else if (table === 'player_cosmetics') {
@@ -136,7 +147,7 @@ test('database and ownership failures allow joining with default cosmetics', asy
   failedTable = '';
 });
 
-test('paid avatars cannot be forged when only frames are persisted', async () => {
+test('paid avatars cannot be forged without the avatar migration', async () => {
   equipped = 'coral-frame';
   const host = await create('Frame', { authToken: 'signed-in', avatar: 11 });
   const spoofedOptions = {
@@ -156,6 +167,39 @@ test('paid avatars cannot be forged when only frames are persisted', async () =>
   );
   assert.equal(host.state.players.get(guest.sessionId)!.avatar, 0);
   assert.equal(host.state.players.get(anonymous.sessionId)!.avatar, 0);
+});
+
+test('owned card and tank equipment reaches other players without changing the frame', async () => {
+  equipped = 'mint-frame';
+  equippedSlots = {
+    frame: 'mint-frame',
+    'card-back': 'midnight-cards',
+    'card-animation': 'velvet-deal',
+    'tank-decal': 'lightning-decal',
+    avatar: 'royal-avatar',
+  };
+  try {
+    const host = await create('Equipped', { authToken: 'signed-in' });
+    const guest = await join(host.roomId, 'Guest', { authToken: '' });
+    await waitFor(host, (state) => state.players.size === 2);
+    assert.deepEqual(
+      JSON.parse(guest.state.players.get(host.sessionId)!.cosmetics!),
+      {
+        frame: 'mint-frame',
+        'card-back': 'midnight-cards',
+        'card-animation': 'velvet-deal',
+        'tank-decal': 'lightning-decal',
+      },
+    );
+    equippedSlots = {};
+    assert.deepEqual(
+      await equippedCosmetics(accountId),
+      {},
+      'An empty loadout must not revive stale legacy equipment',
+    );
+  } finally {
+    equippedSlots = undefined;
+  }
 });
 
 test('unowned paid avatars cannot bypass the free avatar validation', async () => {

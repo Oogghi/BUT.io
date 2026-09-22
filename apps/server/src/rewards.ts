@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import {
   calculateMatchReward,
+  isPersistedCosmeticId,
   normalizeCosmeticLoadout,
   type AnyMatchResult,
   type CosmeticLoadout,
@@ -56,7 +57,7 @@ export async function equippedCosmetics(
     const [wallet, ownership] = await Promise.all([
       admin
         .from('player_wallets')
-        .select('equipped_cosmetic')
+        .select('equipped_cosmetic,equipped_cosmetics')
         .eq('user_id', userId)
         .maybeSingle(),
       admin
@@ -67,11 +68,8 @@ export async function equippedCosmetics(
     if (wallet.error || ownership.error) return {};
     const owned = (ownership.data ?? [])
       .map((row) => row.cosmetic_id)
-      .filter((id): id is string => typeof id === 'string');
-    return normalizeCosmeticLoadout(
-      { frame: wallet.data?.equipped_cosmetic },
-      owned,
-    );
+      .filter(isPersistedCosmeticId);
+    return normalizeCosmeticLoadout(wallet.data?.equipped_cosmetics, owned);
   } catch {
     // Missing migrations or a transient database failure use the default looks.
     return {};

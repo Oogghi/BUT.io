@@ -6,7 +6,13 @@ import { after, beforeEach, test } from 'node:test';
 const userId = '00000000-0000-4000-8000-000000000001';
 const otherId = '00000000-0000-4000-8000-000000000002';
 const columns: Record<string, readonly string[]> = {
-  player_wallets: ['user_id', 'coins', 'equipped_cosmetic', 'updated_at'],
+  player_wallets: [
+    'user_id',
+    'coins',
+    'equipped_cosmetic',
+    'equipped_cosmetics',
+    'updated_at',
+  ],
   player_cosmetics: ['user_id', 'cosmetic_id', 'purchased_at'],
   friendships: ['user_id', 'friend_id', 'status', 'created_at', 'updated_at'],
   profiles: ['id', 'username', 'avatar_key', 'created_at', 'updated_at'],
@@ -61,17 +67,30 @@ const server = createServer(async (request, response) => {
   if (forcedError) return error(forcedError.code, forcedError.message);
   const name = url.pathname.split('/').at(-1)!;
   if (url.pathname.includes('/rpc/')) {
-    if (!['purchase_cosmetic', 'set_equipped_cosmetic'].includes(name))
+    if (!['purchase_cosmetic', 'set_cosmetic_slot'].includes(name))
       return error('PGRST202', 'Unknown function');
-    if (Object.keys(body ?? {}).join(',') !== 'p_cosmetic_id')
+    const expectedArgs =
+      name === 'purchase_cosmetic' ? 'p_cosmetic_id' : 'p_cosmetic_id,p_slot';
+    if (
+      Object.keys(body ?? {})
+        .sort()
+        .join(',') !== expectedArgs
+    )
       return error('PGRST202', 'Unknown function arguments');
     const id = body?.p_cosmetic_id;
     if (
       id !== null &&
-      !['coral-frame', 'mint-frame', 'sky-frame'].includes(String(id))
+      ![
+        'coral-frame',
+        'mint-frame',
+        'sky-frame',
+        'midnight-cards',
+        'velvet-deal',
+      ].includes(String(id))
     )
       return error('P0001', 'cosmetic-not-found');
-    response.end(JSON.stringify({ coins: 100, equipped_cosmetic: id }));
+    const frame = body?.p_slot && body.p_slot !== 'frame' ? 'mint-frame' : id;
+    response.end(JSON.stringify({ coins: 100, equipped_cosmetic: frame }));
     return;
   }
   const allowed = columns[name];
@@ -150,13 +169,18 @@ beforeEach(() => {
   forcedError = null;
   rows = {
     player_wallets: [
-      { user_id: userId, coins: 180, equipped_cosmetic: 'mint-frame' },
+      {
+        user_id: userId,
+        coins: 180,
+        equipped_cosmetic: 'mint-frame',
+        equipped_cosmetics: { frame: 'mint-frame' },
+      },
     ],
     player_cosmetics: [{ user_id: userId, cosmetic_id: 'mint-frame' }],
   };
 });
 
-test('wallet reads use the singular column and ownership is loaded separately', async () => {
+test('migrated wallet slots are validated against separately loaded ownership', async () => {
   assert.deepEqual(await api.loadRewardState(userId), {
     coins: 180,
     ownedCosmetics: ['mint-frame'],
@@ -189,19 +213,49 @@ test('frame purchase, equip and reset use the live RPC signatures', async () => 
   assert.equal((await api.setEquippedCosmetic(null)).equippedCosmetic, null);
   assert.deepEqual(
     requests.map(({ url }) => url.pathname.split('/').at(-1)),
-    ['purchase_cosmetic', 'set_equipped_cosmetic', 'set_equipped_cosmetic'],
+    ['purchase_cosmetic', 'set_cosmetic_slot', 'set_cosmetic_slot'],
   );
 });
 
 test('unsupported purchases and equipment are rejected before any RPC', async () => {
   for (const call of [
     () => api.purchaseCosmetic('royal-avatar'),
-    () => api.setEquippedCosmetic('midnight-cards', 'card-back'),
     () => api.setEquippedCosmetic(null, 'avatar'),
     () => api.setEquippedCosmetic('royal-avatar'),
   ])
     await assert.rejects(call, { code: 'cosmetic-not-found' });
   assert.equal(requests.length, 0);
+});
+
+test('card equipment loads independently of the frame and uses the slot RPC', async () => {
+  rows.player_wallets![0]!.equipped_cosmetics = {
+    frame: 'mint-frame',
+    'card-back': 'midnight-cards',
+    'card-animation': 'velvet-deal',
+    'tank-decal': 'star-decal',
+  };
+  rows.player_cosmetics!.push(
+    { user_id: userId, cosmetic_id: 'midnight-cards' },
+    { user_id: userId, cosmetic_id: 'velvet-deal' },
+  );
+  const rewards = await api.loadRewardState(userId);
+  assert.deepEqual(rewards.equippedCosmetics, {
+    frame: 'mint-frame',
+    'card-back': 'midnight-cards',
+    'card-animation': 'velvet-deal',
+  });
+  assert.equal(rewards.equippedCosmetic, 'mint-frame');
+  await api.purchaseCosmetic('midnight-cards');
+  await api.setEquippedCosmetic('midnight-cards', 'card-back');
+  assert.deepEqual(requests.at(-1)!.body, {
+    p_slot: 'card-back',
+    p_cosmetic_id: 'midnight-cards',
+  });
+  await api.setEquippedCosmetic(null, 'card-back');
+  assert.deepEqual(requests.at(-1)!.body, {
+    p_slot: 'card-back',
+    p_cosmetic_id: null,
+  });
 });
 
 test('declining deletes only the incoming pending request', async () => {

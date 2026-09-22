@@ -6,7 +6,12 @@ import {
 import { lang } from './i18n';
 export { isCosmeticId, normalizeCosmeticLoadout } from '@but/shared';
 export type { CosmeticId, CosmeticSlot, CosmeticLoadout } from '@but/shared';
-export const cosmeticSlots: readonly CosmeticSlot[] = ['frame'];
+export const cosmeticSlots: readonly CosmeticSlot[] = [
+  'frame',
+  'card-back',
+  'card-animation',
+  'tank-decal',
+];
 
 const copy = {
   en: [
@@ -86,7 +91,7 @@ export const cosmeticLabels =
         reset: 'Retirer',
         preview: 'Rejouer',
         equipped: 'Ton équipement',
-        hint: 'Un cadre équipé à la fois. Les autres joueurs verront ton choix à ta prochaine entrée dans un salon.',
+        hint: 'Un objet par emplacement. Tes choix sont visibles par les autres joueurs à ta prochaine entrée dans un salon.',
         empty: 'Classique',
         loading: 'Chargement des cosmétiques…',
         insufficient: 'Pièces insuffisantes',
@@ -122,7 +127,7 @@ export const cosmeticLabels =
         reset: 'Unequip',
         preview: 'Replay',
         equipped: 'Your loadout',
-        hint: 'One equipped frame at a time. Other players see your choice the next time you join a lobby.',
+        hint: 'One item per slot. Other players see your choices the next time you join a lobby.',
         empty: 'Classic',
         loading: 'Loading cosmetics…',
         insufficient: 'Not enough coins',

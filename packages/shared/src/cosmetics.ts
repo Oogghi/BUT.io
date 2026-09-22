@@ -35,6 +35,15 @@ export const persistedCosmeticIds = [
   'coral-frame',
   'mint-frame',
   'sky-frame',
+  'midnight-cards',
+  'sunset-cards',
+  'mint-cards',
+  'velvet-deal',
+  'spiral-deal',
+  'snap-deal',
+  'lightning-decal',
+  'star-decal',
+  'stripes-decal',
 ] as const satisfies readonly CosmeticId[];
 export type PersistedCosmeticId = (typeof persistedCosmeticIds)[number];
 export function isPersistedCosmeticId(

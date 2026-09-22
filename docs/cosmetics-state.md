@@ -1,6 +1,6 @@
 # Game cosmetics — 22 September 2026
 
-Current live compatibility supersedes the rollout instructions below: see [the schema audit](supabase-schema-audit.md). The hosted database supports three frames and one equipped frame only. The expanded slots are not enabled in the application; these migrations must not be applied merely to resolve a stale query.
+Current rollout status: the user approved the game-cosmetics expansion and it has been applied with data-preservation guards. See [the restoration note](cosmetics-restoration.md). Frames, card backs, dealing animations and tank decals are enabled; the separate premium-avatar expansion remains unapplied.
 
 Follow-up: [avatar expansion](avatar-art.md) adds six free faces (twelve total), four premium avatars, and a fifth independent `avatar` slot. Its migration follows the original cosmetics migration; both must be applied before release. That note contains the current avatar behavior, verification, artwork paths, and generation prompts.
 

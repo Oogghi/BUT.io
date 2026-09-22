@@ -1,3 +1,33 @@
+-- Restore game cosmetics without resetting existing accounts or statistics.
+-- Run this entire file in Supabase SQL Editor as one transaction.
+-- Re-running preserves existing equipment; premium avatars are a separate rollout.
+begin;
+set local lock_timeout = '5s';
+
+-- Writes wait briefly while preservation checks and backfill run.
+-- Lock in the same order as match reward writes; abort if locks take over 5s.
+lock table public.match_history, public.game_stats, public.coin_transactions,
+  public.player_wallets, public.player_cosmetics in share row exclusive mode;
+create temporary table cosmetics_preserved_rows (
+  table_name text primary key,
+  data jsonb not null
+) on commit drop;
+do $guard$
+declare
+  target text;
+  snapshot jsonb;
+begin
+  foreach target in array array['player_wallets','player_cosmetics','game_stats','match_history','coin_transactions']
+  loop
+    execute format(
+      'select coalesce(jsonb_agg(row order by row::text), ''[]''::jsonb) from (select to_jsonb(t) - ''equipped_cosmetics'' as row from public.%I t) s',
+      target
+    ) into snapshot;
+    insert into cosmetics_preserved_rows values (target, snapshot);
+  end loop;
+end;
+$guard$;
+
 -- Independent equipment slots let players combine a frame with game cosmetics.
 -- Keep equipped_cosmetic as the frame-only API for older clients.
 alter table public.player_wallets
@@ -187,3 +217,23 @@ revoke all on function public.set_equipped_cosmetic(text) from public, anon;
 grant execute on function public.purchase_cosmetic(text) to authenticated;
 grant execute on function public.set_cosmetic_slot(text, text) to authenticated;
 grant execute on function public.set_equipped_cosmetic(text) to authenticated;
+
+-- Abort everything if any existing data (other than the new equipment map) changed.
+do $guard$
+declare
+  saved record;
+  current_data jsonb;
+begin
+  for saved in select * from cosmetics_preserved_rows
+  loop
+    execute format(
+      'select coalesce(jsonb_agg(row order by row::text), ''[]''::jsonb) from (select to_jsonb(t) - ''equipped_cosmetics'' as row from public.%I t) s',
+      saved.table_name
+    ) into current_data;
+    if current_data is distinct from saved.data then
+      raise exception 'Cosmetics migration changed existing data in %. Rolling back.', saved.table_name;
+    end if;
+  end loop;
+end;
+$guard$;
+commit;

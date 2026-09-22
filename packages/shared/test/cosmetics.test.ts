@@ -55,17 +55,17 @@ test('expanded artwork catalog matches the unapplied expansion migration', () =>
   assert.deepEqual(rows, cosmeticCatalog);
 });
 
-test('live purchasable items and prices match the deployed single-frame RPC', () => {
+test('purchasable items and prices match the game cosmetics migration', () => {
   const sql = readFileSync(
     new URL(
-      '../../../supabase/migrations/20260919190000_rewards.sql',
+      '../../../supabase/migrations/20260921222011_game_cosmetic_slots.sql',
       import.meta.url,
     ),
     'utf8',
   );
-  const rows = [...sql.matchAll(/when '([^']+)' then (\d+)/g)].map(
-    ([, id, price]) => ({ id, price: Number(price) }),
-  );
+  const rows = [
+    ...sql.matchAll(/\('([^']+)', '([^']+)', (\d+)::bigint\)/g),
+  ].map(([, id, , price]) => ({ id, price: Number(price) }));
   assert.deepEqual(
     rows,
     cosmeticCatalog

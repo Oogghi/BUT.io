@@ -1,5 +1,7 @@
 # Live Supabase schema audit — 22 September 2026
 
+Later update: the user authorized restoring game cosmetics. [The restoration note](cosmetics-restoration.md) records the applied migration and data-preservation checks. The frame-only cosmetics contract below describes the database before that approved expansion; the other audit fixes remain in place.
+
 ## Goal and acceptance
 
 Reconcile application reads, writes, RPCs and display state with the user's live public-schema snapshot. Verify the affected client/server behavior, preserve unrelated work, and commit/push only this audit's changes. No schema expansion or RLS changes are needed.
