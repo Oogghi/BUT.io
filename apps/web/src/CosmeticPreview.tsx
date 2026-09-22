@@ -10,6 +10,8 @@ import { PlayerAvatar } from './Avatar';
 import { cardDealOrigin, cosmeticLabels, cosmetics } from './cosmetics';
 import { useAppReducedMotion } from './MotionPreferences';
 import { spring } from './spring';
+import { BlackjackCelebration } from './BlackjackCelebration';
+import { blackjackCelebrationIds } from './blackjackCelebrationRules';
 
 /** A player's equipment stays with their cards, including split hands and reveals. */
 export const CardCosmetics = createContext<CosmeticLoadout>({});
@@ -42,6 +44,37 @@ export function CosmeticPreview({
   const [replay, setReplay] = useState(0);
   const reduced = useAppReducedMotion();
   const item = cosmetics.find((item) => item.id === id)!;
+  const celebration = blackjackCelebrationIds.find((known) => known === id);
+  if (celebration)
+    return (
+      <div className="cosmetic-card-demo">
+        <div className="cosmetic-blackjack-stage" aria-hidden="true">
+          <div className="cosmetic-blackjack-hand">
+            <span>
+              A
+              <svg viewBox="0 0 24 24">
+                <path d="M12 2C9 7 3 9 3 14a5 5 0 0 0 8 3l-2 5h6l-2-5a5 5 0 0 0 8-3c0-5-6-7-9-12Z" />
+              </svg>
+            </span>
+            <span>
+              K
+              <svg viewBox="0 0 24 24">
+                <path d="M12 22C8 17 2 13 2 7a5 5 0 0 1 10-2 5 5 0 0 1 10 2c0 6-6 10-10 15Z" />
+              </svg>
+            </span>
+          </div>
+          <BlackjackCelebration key={replay} id={celebration} preview />
+        </div>
+        <button
+          type="button"
+          className="text-link cosmetic-replay"
+          onClick={() => setReplay((value) => value + 1)}
+          aria-label={`${cosmeticLabels.preview} ${item.name}`}
+        >
+          {cosmeticLabels.preview} ↻
+        </button>
+      </div>
+    );
   if (item.slot === 'avatar')
     return (
       <div className="cosmetic-premium-preview">

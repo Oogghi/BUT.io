@@ -27,6 +27,8 @@ import { spring } from './spring';
 import { t } from './i18n';
 import { CardBack, CardCosmetics, useCardCosmetics } from './CosmeticPreview';
 import { cardDealOrigin } from './cosmetics';
+import { BlackjackCelebration } from './BlackjackCelebration';
+import { blackjackCelebrationFor } from './blackjackCelebrationRules';
 
 type Settings = BlackjackSnapshot['settings'];
 type LobbyPlayer = BlackjackSnapshot['players'][number];
@@ -861,6 +863,7 @@ function Hand({
   active: boolean;
   deal: DealSlot;
 }) {
+  const celebration = blackjackCelebrationFor(hand, useCardCosmetics());
   const settled = hand.outcome
     ? hand.outcome
     : hand.status === 'bust'
@@ -871,6 +874,12 @@ function Hand({
   return (
     <div className={`bj-hand${active ? ' is-active' : ''}`}>
       <CardRow cards={hand.cards} deal={deal} />
+      {celebration && (
+        <BlackjackCelebration
+          id={celebration}
+          delay={dealDelay(1, deal) + 0.45}
+        />
+      )}
       {hand.cards.length > 0 && (
         <div className="bj-hand-meta">
           <motion.span

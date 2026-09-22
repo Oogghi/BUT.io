@@ -10,6 +10,7 @@ export const cosmeticSlots: readonly CosmeticSlot[] = [
   'frame',
   'card-back',
   'card-animation',
+  'blackjack-celebration',
   'tank-decal',
 ];
 
@@ -31,6 +32,9 @@ const copy = {
     ['Orbit buddy', 'A friendly face from another galaxy.'],
     ['Pocket wizard', 'A little magic at every table.'],
     ['Pixel pal', 'Your cheerful mechanical alter ego.'],
+    ['Golden 21', 'A burst of gold coins celebrates your natural blackjack.'],
+    ['Royal Arrival', 'A crown descends over your natural blackjack.'],
+    ['Electric 21', 'Twin lightning bolts charge up your natural blackjack.'],
   ],
   fr: [
     ['Cadre corail', 'Une touche chaleureuse pour ton profil.'],
@@ -49,6 +53,9 @@ const copy = {
     ['Copain cosmique', 'Un ami venu d’une autre galaxie.'],
     ['Mage de poche', 'Un peu de magie à chaque table.'],
     ['Copain robot', 'Ton alter ego mécanique et souriant.'],
+    ['21 en or', 'Une envolée de pièces célèbre ton blackjack naturel.'],
+    ['Arrivée royale', 'Une couronne se pose sur ton blackjack naturel.'],
+    ['21 électrique', 'Deux éclairs illuminent ton blackjack naturel.'],
   ],
 };
 export const cosmetics = cosmeticCatalog
@@ -84,6 +91,8 @@ export const cosmeticLabels =
         frame: 'Cadres',
         'card-back': 'Dos de cartes',
         'card-animation': 'Animations',
+        'blackjack-celebration': 'Célébrations blackjack',
+        blackjack: 'Blackjack uniquement',
         'tank-decal': 'Décalcomanies',
         games: 'Blackjack · Poker',
         tanks: 'Tank Arena',
@@ -120,6 +129,8 @@ export const cosmeticLabels =
         frame: 'Frames',
         'card-back': 'Card backs',
         'card-animation': 'Animations',
+        'blackjack-celebration': 'Blackjack celebrations',
+        blackjack: 'Blackjack only',
         'tank-decal': 'Tank decals',
         games: 'Blackjack · Poker',
         tanks: 'Tank Arena',

@@ -1,5 +1,7 @@
 # Game cosmetics restored — 22 September 2026
 
+Update: [Blackjack celebrations](blackjack-celebrations.md) subsequently expanded the deployed catalog to 15 items and five game-cosmetic slots. Do not re-run the older 12-item restoration script against that newer catalog.
+
 ## Current state
 
 The user approved the database expansion after the live-schema audit. Applied to BUT.io as migration `20260922131246_restore_game_cosmetics_preserve_stats` before releasing the app changes. The earlier audit's single-frame-only restriction is superseded for game cosmetics.

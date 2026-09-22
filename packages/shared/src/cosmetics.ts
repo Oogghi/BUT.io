@@ -4,6 +4,7 @@ export const cosmeticSlots = [
   'frame',
   'card-back',
   'card-animation',
+  'blackjack-celebration',
   'tank-decal',
 ] as const;
 export type CosmeticSlot = (typeof cosmeticSlots)[number];
@@ -24,13 +25,16 @@ export const cosmeticCatalog = [
   { id: 'astronaut-avatar', slot: 'avatar', price: 160 },
   { id: 'wizard-avatar', slot: 'avatar', price: 140 },
   { id: 'robot-avatar', slot: 'avatar', price: 160 },
+  { id: 'golden-blackjack', slot: 'blackjack-celebration', price: 180 },
+  { id: 'royal-blackjack', slot: 'blackjack-celebration', price: 220 },
+  { id: 'electric-blackjack', slot: 'blackjack-celebration', price: 200 },
 ] as const;
 export type CosmeticId = (typeof cosmeticCatalog)[number]['id'];
 export type CosmeticLoadout = Partial<Record<CosmeticSlot, CosmeticId>>;
 export function isCosmeticId(value: unknown): value is CosmeticId {
   return cosmeticCatalog.some((item) => item.id === value);
 }
-/** Items supported by the live player_cosmetics constraint and purchase RPC. */
+/** Items supported by the live ownership constraint and purchase RPC. */
 export const persistedCosmeticIds = [
   'coral-frame',
   'mint-frame',
@@ -44,6 +48,9 @@ export const persistedCosmeticIds = [
   'lightning-decal',
   'star-decal',
   'stripes-decal',
+  'golden-blackjack',
+  'royal-blackjack',
+  'electric-blackjack',
 ] as const satisfies readonly CosmeticId[];
 export type PersistedCosmeticId = (typeof persistedCosmeticIds)[number];
 export function isPersistedCosmeticId(

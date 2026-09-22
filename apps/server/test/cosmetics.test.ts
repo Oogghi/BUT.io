@@ -11,6 +11,7 @@ const owned = [
   'midnight-cards',
   'velvet-deal',
   'lightning-decal',
+  'golden-blackjack',
 ];
 let equippedSlots: unknown = undefined;
 let failedTable = '';
@@ -175,6 +176,7 @@ test('owned card and tank equipment reaches other players without changing the f
     frame: 'mint-frame',
     'card-back': 'midnight-cards',
     'card-animation': 'velvet-deal',
+    'blackjack-celebration': 'golden-blackjack',
     'tank-decal': 'lightning-decal',
     avatar: 'royal-avatar',
   };
@@ -188,6 +190,7 @@ test('owned card and tank equipment reaches other players without changing the f
         frame: 'mint-frame',
         'card-back': 'midnight-cards',
         'card-animation': 'velvet-deal',
+        'blackjack-celebration': 'golden-blackjack',
         'tank-decal': 'lightning-decal',
       },
     );

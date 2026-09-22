@@ -52,13 +52,16 @@ test('expanded artwork catalog matches the unapplied expansion migration', () =>
   const rows = [
     ...sql.matchAll(/\('([^']+)', '([^']+)', (\d+)::bigint\)/g),
   ].map(([, id, slot, price]) => ({ id, slot, price: Number(price) }));
-  assert.deepEqual(rows, cosmeticCatalog);
+  assert.deepEqual(
+    rows,
+    cosmeticCatalog.filter((item) => item.slot !== 'blackjack-celebration'),
+  );
 });
 
-test('purchasable items and prices match the game cosmetics migration', () => {
+test('purchasable items and prices match the celebration catalog SQL', () => {
   const sql = readFileSync(
     new URL(
-      '../../../supabase/migrations/20260921222011_game_cosmetic_slots.sql',
+      '../../../supabase/manual/add_blackjack_celebrations.sql',
       import.meta.url,
     ),
     'utf8',
@@ -77,4 +80,25 @@ test('purchasable items and prices match the game cosmetics migration', () => {
     persistedCosmeticIds,
   );
   assert.equal(isPersistedCosmeticId('royal-avatar'), false);
+});
+
+test('Blackjack celebrations have their own owned equipment slot', () => {
+  const loadout = {
+    'card-animation': 'velvet-deal',
+    'blackjack-celebration': 'golden-blackjack',
+  };
+  assert.deepEqual(
+    normalizeCosmeticLoadout(loadout, ['velvet-deal', 'golden-blackjack']),
+    loadout,
+  );
+  assert.deepEqual(normalizeCosmeticLoadout(loadout, ['velvet-deal']), {
+    'card-animation': 'velvet-deal',
+  });
+  assert.deepEqual(
+    normalizeCosmeticLoadout({
+      'card-animation': 'golden-blackjack',
+      'blackjack-celebration': 'velvet-deal',
+    }),
+    {},
+  );
 });

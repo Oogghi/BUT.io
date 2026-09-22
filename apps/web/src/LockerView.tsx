@@ -339,7 +339,9 @@ export function LockerView() {
                           ? c.profile
                           : cosmetic.slot === 'tank-decal'
                             ? c.tanks
-                            : c.games}
+                            : cosmetic.slot === 'blackjack-celebration'
+                              ? c.blackjack
+                              : c.games}
                     </span>
                     <strong>{cosmetic.name}</strong>
                     <p>{cosmetic.description}</p>

@@ -1,0 +1,155 @@
+.bj-celebration {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: clamp(140px, 20vw, 200px);
+  aspect-ratio: 5 / 4;
+  transform: translate(-50%, -60%);
+  pointer-events: none;
+  z-index: 8;
+  animation: bj-celebration-lifetime 2.4s var(--celebration-delay, 0s) both;
+}
+.bj-celebration svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.bj-celebration text {
+  font-family: inherit;
+  font-size: 34px;
+  font-weight: 900;
+}
+.bj-celebration-coin {
+  transform-origin: 100px 80px;
+  animation: bj-gold-burst 1.7s var(--celebration-delay, 0s) both
+    cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bj-celebration-crown {
+  transform-origin: 100px 75px;
+  animation: bj-crown-arrival 0.7s var(--celebration-delay, 0s) both
+    cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bj-celebration-bolts {
+  animation: bj-bolts-reveal 0.6s var(--celebration-delay, 0s) both
+    cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bj-celebration-seal {
+  transform-origin: 100px 110px;
+  animation: bj-seal-arrival 0.45s var(--celebration-delay, 0s) both
+    cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes bj-celebration-lifetime {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes bj-gold-burst {
+  0% {
+    transform: translate(0, 0) scale(0.3);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--coin-x), var(--coin-y)) rotate(var(--coin-turn));
+    opacity: 0;
+  }
+}
+@keyframes bj-crown-arrival {
+  from {
+    transform: translateY(-45px) rotate(-12deg);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+  }
+}
+@keyframes bj-bolts-reveal {
+  from {
+    clip-path: inset(0 0 100%);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes bj-seal-arrival {
+  from {
+    transform: scale(0.75);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.bj-celebration.is-reduced {
+  animation-duration: 1.8s;
+}
+.bj-celebration.is-reduced svg * {
+  animation: none;
+}
+.bj-celebration.is-still,
+.bj-celebration.is-still svg * {
+  animation: none;
+}
+.bj-celebration.is-still .bj-celebration-coin {
+  transform: translate(var(--coin-x), var(--coin-y));
+}
+.bj-celebration.is-reduced .bj-celebration-coin {
+  transform: translate(var(--coin-x), var(--coin-y));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bj-celebration {
+    animation-delay: 0s;
+    animation-duration: 1.8s;
+  }
+  .bj-celebration svg * {
+    animation: none;
+  }
+  .bj-celebration .bj-celebration-coin {
+    transform: translate(var(--coin-x), var(--coin-y));
+  }
+}
+.cosmetic-blackjack-stage {
+  position: relative;
+  width: 180px;
+  height: 150px;
+}
+.cosmetic-blackjack-stage .bj-celebration {
+  width: 190px;
+}
+.cosmetic-blackjack-hand {
+  display: flex;
+  justify-content: center;
+  padding-top: 40px;
+}
+.cosmetic-blackjack-hand > span {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  width: 60px;
+  height: 84px;
+  border-radius: 7px;
+  background: #fffaf0;
+  border: 1px solid #183a3340;
+  color: #183a33;
+  font-size: 24px;
+  font-weight: 800;
+  transform: rotate(-9deg);
+}
+.cosmetic-blackjack-hand svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+.cosmetic-blackjack-hand > span + span {
+  margin-left: -15px;
+  color: #b3324a;
+  transform: translateY(5px) rotate(9deg);
+}
