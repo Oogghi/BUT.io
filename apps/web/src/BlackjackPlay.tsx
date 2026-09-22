@@ -97,7 +97,8 @@ export function BlackjackPlay({
   // centre, and you otherwise. Desktop seats never scroll, so there this is a no-op.
   const seatList = useRef<HTMLUListElement>(null);
   const reduced = useReducedMotion();
-  const focusId = (game.stage === 'playing' && game.activePlayerId) || sessionId;
+  const focusId =
+    (game.stage === 'playing' && game.activePlayerId) || sessionId;
   useEffect(() => {
     const list = seatList.current;
     const seat = list?.querySelector<HTMLElement>(
@@ -325,28 +326,30 @@ function BettingDock({
 
   if (player.chips < settings.minBet)
     return (
-      <div className="bj-actions">
+      <>
         <p className="bj-wait">
           {t.bj.outOfChips}{' '}
           <span>{t.bj.rebuyCount(player.rebuys, settings.maxRebuys)}</span>
         </p>
-        <button
-          className="button secondary"
-          type="button"
-          onClick={() => send('bet', EMPTY_BET)}
-        >
-          {t.bj.skipRebuy}
-        </button>
-        {settings.rebuysEnabled && player.rebuys < settings.maxRebuys && (
+        <div className="bj-actions">
           <button
-            className="button primary"
+            className="button secondary"
             type="button"
-            onClick={() => send('rebuy')}
+            onClick={() => send('bet', EMPTY_BET)}
           >
-            <Icon name="coin" /> {t.bj.rebuy} · {settings.rebuyCost}
+            {t.bj.skipRebuy}
           </button>
-        )}
-      </div>
+          {settings.rebuysEnabled && player.rebuys < settings.maxRebuys && (
+            <button
+              className="button primary"
+              type="button"
+              onClick={() => send('rebuy')}
+            >
+              <Icon name="coin" /> {t.bj.rebuy} · {settings.rebuyCost}
+            </button>
+          )}
+        </div>
+      </>
     );
 
   const total = bet.main + bet.perfectPairs + bet.twentyOnePlusThree;

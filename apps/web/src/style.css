@@ -6863,7 +6863,7 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
 @media (max-width: 900px) {
   .blackjack-table .bj-felt {
     --card-w: 50px;
-    --seat-w: 54cqw;
+    --seat-w: 50cqw;
     /* Room above the seats for the bet popovers, which the strip would clip. */
     --seat-headroom: 150px;
     display: flex;
@@ -6895,9 +6895,9 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     scale: 0.7;
     transform-origin: top left;
   }
+  /* Only the count: the stacked backs crowd the corner of a narrow felt. */
   .blackjack-table .bj-discard-pile {
-    max-height: 84px;
-    overflow: hidden;
+    display: none;
   }
   .blackjack-table .bj-seats {
     position: relative;
@@ -6984,15 +6984,17 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
   0% {
     z-index: 0;
     opacity: 0;
-    scale: 0.5;
-    translate: -60% -36px;
-    rotate: -16deg;
+    scale: 0.45;
+    translate: -30% -34px;
+    rotate: -10deg;
   }
-  15% {
-    opacity: 0.75;
-    scale: 0.74;
-    translate: -30% -20px;
-    rotate: -8deg;
+  /* Where a direct neighbour sits (--seat-w is half the strip). Pulled in only as
+     far as keeps it clear of the centre seat, even when both are full width. */
+  16.67% {
+    opacity: 0.7;
+    scale: 0.62;
+    translate: -14% -18px;
+    rotate: -5deg;
   }
   50% {
     z-index: 4;
@@ -7001,18 +7003,18 @@ body:has(.lobby-page.is-playing[data-game='tank-arena']) main.shell {
     translate: 0 0;
     rotate: 0deg;
   }
-  85% {
-    opacity: 0.75;
-    scale: 0.74;
-    translate: 30% -20px;
-    rotate: 8deg;
+  83.33% {
+    opacity: 0.7;
+    scale: 0.62;
+    translate: 14% -18px;
+    rotate: 5deg;
   }
   100% {
     z-index: 0;
     opacity: 0;
-    scale: 0.5;
-    translate: 60% -36px;
-    rotate: 16deg;
+    scale: 0.45;
+    translate: 30% -34px;
+    rotate: 10deg;
   }
 }
 
