@@ -27,7 +27,9 @@ export function loadProfile(): Profile {
 export function saveProfile(profile: Profile) {
   try {
     localStorage.setItem(storageKey, JSON.stringify(profile));
+    return true;
   } catch {
-    // Storage can be unavailable (e.g. private mode); the profile just won't persist.
+    // The caller can explain that this change will not survive a reload.
+    return false;
   }
 }

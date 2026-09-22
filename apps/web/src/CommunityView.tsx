@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { Icon } from './Icon';
+import { Drawer } from './Drawer';
 import { GroupFeature } from './GroupFeature';
 import { loadProfile } from './profile';
 import { t } from './i18n';
@@ -68,16 +69,7 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [error, setError] = useState('');
   const arenaPage = feature === 'stats' || feature === 'leaderboard';
-  const [arenaTab, setArenaTab] = useState<'stats' | 'leaderboard'>(
-    feature === 'leaderboard' ? 'leaderboard' : 'stats',
-  );
-  const config = arenaPage
-    ? {
-        icon: 'trophy' as const,
-        title: t.community.arenaTitle,
-        description: t.community.arenaDescription,
-      }
-    : featureConfig[feature];
+  const config = featureConfig[feature];
 
   useEffect(() => {
     let active = true;
@@ -136,6 +128,9 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
             {t.leaderboard}
           </Link>
         </nav>
+        {arenaPage && (
+          <p className="community-muted">{t.polish.trackingCoverage}</p>
+        )}
       </header>
 
       {account && (account.username || account.isAnonymous) && (
@@ -155,38 +150,29 @@ export function CommunityView({ feature }: { feature: CommunityFeature }) {
         </div>
       )}
 
-      {account && arenaPage && (
-        <nav className="arena-tabs" aria-label={t.community.arenaTitle}>
-          <button
-            className={arenaTab === 'stats' ? 'is-active' : ''}
-            type="button"
-            onClick={() => setArenaTab('stats')}
-          >
-            <Icon name="stats" /> {t.stats}
-          </button>
-          <button
-            className={arenaTab === 'leaderboard' ? 'is-active' : ''}
-            type="button"
-            onClick={() => setArenaTab('leaderboard')}
-          >
-            <Icon name="trophy" /> {t.leaderboard}
-          </button>
-        </nav>
-      )}
-
       {account === undefined ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} />
       ) : !account ? (
-        <AuthPanel initialMode={undefined} onAuthenticated={setAccount} />
+        <AuthPanel
+          initialMode={undefined}
+          onAuthenticated={setAccount}
+          description={
+            feature === 'stats'
+              ? t.polish.statsIntro
+              : feature === 'leaderboard'
+                ? t.polish.leaderboardIntro
+                : undefined
+          }
+        />
       ) : !account.username && !account.isAnonymous ? (
         <ProfileSetup account={account} onComplete={setAccount} />
       ) : feature === 'group' ? (
         <GroupFeature account={account} />
       ) : feature === 'friends' ? (
         <FriendsFeature account={account} />
-      ) : arenaTab === 'stats' ? (
+      ) : feature === 'stats' ? (
         <StatsFeature account={account} />
       ) : (
         <LeaderboardFeature account={account} />
@@ -208,6 +194,11 @@ export function CommunityDrawer({
 }) {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [error, setError] = useState('');
+  const [lastSection, setLastSection] = useState<CommunitySection>('friends');
+  const shownSection = section ?? lastSection;
+  useEffect(() => {
+    if (section) setLastSection(section);
+  }, [section]);
 
   useEffect(() => {
     if (!section) return;
@@ -232,100 +223,99 @@ export function CommunityDrawer({
     setAccount(null);
   }
 
-  if (!section) return null;
   return (
-    <div className="community-drawer-layer">
-      <button
-        className="community-drawer-backdrop"
-        type="button"
-        aria-label={t.community.closePanel}
-        onClick={onClose}
-      />
-      <aside className="community-drawer" aria-label={t.community.socialTitle}>
-        <header className="community-drawer-header">
-          <div className="community-drawer-heading">
-            <span className="community-drawer-icon" aria-hidden="true">
-              <Icon name="users" />
-            </span>
-            <div>
-              <span className="eyebrow">{t.community.socialTitle}</span>
-              <h2>{t.community.socialDescription}</h2>
-            </div>
+    <Drawer
+      open={Boolean(section)}
+      onClose={onClose}
+      label={t.community.socialTitle}
+    >
+      <header className="community-drawer-header">
+        <div className="community-drawer-heading">
+          <span className="community-drawer-icon" aria-hidden="true">
+            <Icon name="users" />
+          </span>
+          <div>
+            <span className="eyebrow">{t.community.socialTitle}</span>
+            <h2>{t.community.socialDescription}</h2>
           </div>
-          <button
-            className="community-drawer-close"
-            type="button"
-            aria-label={t.community.closePanel}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        <div className="community-drawer-tabs" role="tablist">
-          <button
-            className={section === 'friends' ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={section === 'friends'}
-            onClick={() => onSectionChange('friends')}
-          >
-            <Icon name="users" /> {t.friends}
-          </button>
-          <button
-            className={section === 'group' ? 'is-active' : ''}
-            type="button"
-            role="tab"
-            aria-selected={section === 'group'}
-            onClick={() => onSectionChange('group')}
-          >
-            <Icon name="crown" /> {t.group}
-          </button>
         </div>
-        <div className="community-drawer-body">
-          {account && (account.username || account.isAnonymous) && (
-            <div className="community-drawer-account">
-              <span>
-                {account.isAnonymous
-                  ? t.community.guestAccount
-                  : `${t.community.signedInAs} ${account.username}`}
-              </span>
-              <button
-                className="text-link"
-                type="button"
-                onClick={() => void leaveAccount()}
-              >
-                {t.community.signOut}
-              </button>
-            </div>
-          )}
-          {error ? (
-            <ErrorState message={error} />
-          ) : account === undefined ? (
-            <LoadingState />
-          ) : !account ? (
-            <AuthPanel
-              key={authMode ?? 'sign-in'}
-              initialMode={authMode}
-              onAuthenticated={setAccount}
-            />
-          ) : !account.username && !account.isAnonymous ? (
-            <ProfileSetup account={account} onComplete={setAccount} />
-          ) : section === 'friends' ? (
-            <FriendsFeature account={account} />
-          ) : (
-            <GroupFeature account={account} />
-          )}
-        </div>
-      </aside>
-    </div>
+        <button
+          className="community-drawer-close"
+          type="button"
+          aria-label={t.community.closePanel}
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+      <div
+        className="community-drawer-tabs"
+        role="group"
+        aria-label={t.community.navigation}
+      >
+        <button
+          className={shownSection === 'friends' ? 'is-active' : ''}
+          type="button"
+          aria-pressed={shownSection === 'friends'}
+          onClick={() => onSectionChange('friends')}
+        >
+          <Icon name="users" /> {t.friends}
+        </button>
+        <button
+          className={shownSection === 'group' ? 'is-active' : ''}
+          type="button"
+          aria-pressed={shownSection === 'group'}
+          onClick={() => onSectionChange('group')}
+        >
+          <Icon name="crown" /> {t.group}
+        </button>
+      </div>
+      <div className="community-drawer-body">
+        {account && (account.username || account.isAnonymous) && (
+          <div className="community-drawer-account">
+            <span>
+              {account.isAnonymous
+                ? t.community.guestAccount
+                : `${t.community.signedInAs} ${account.username}`}
+            </span>
+            <button
+              className="text-link"
+              type="button"
+              onClick={() => void leaveAccount()}
+            >
+              {t.community.signOut}
+            </button>
+          </div>
+        )}
+        {error ? (
+          <ErrorState message={error} />
+        ) : account === undefined ? (
+          <LoadingState />
+        ) : !account ? (
+          <AuthPanel
+            key={authMode ?? 'sign-in'}
+            initialMode={authMode}
+            onAuthenticated={setAccount}
+          />
+        ) : !account.username && !account.isAnonymous ? (
+          <ProfileSetup account={account} onComplete={setAccount} />
+        ) : shownSection === 'friends' ? (
+          <FriendsFeature account={account} />
+        ) : (
+          <GroupFeature account={account} />
+        )}
+      </div>
+    </Drawer>
   );
 }
 
 function AuthPanel({
   initialMode = 'sign-in',
   onAuthenticated,
+  description = t.community.authDescription,
 }: {
   initialMode: AuthMode | undefined;
+  description?: string | undefined;
   onAuthenticated: (account: Account) => void;
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -364,7 +354,7 @@ function AuthPanel({
         </h2>
         <Icon name="users" />
       </div>
-      <p>{t.community.authDescription}</p>
+      <p>{description}</p>
       {mode === 'sign-up' && (
         <div className="field">
           <label htmlFor="community-username">{t.community.username}</label>
@@ -450,7 +440,7 @@ function AuthPanel({
           >
             {busy ? t.community.working : t.community.continueAsGuest}
           </button>
-          <p className="community-muted">{t.community.guestDescription}</p>
+          <p className="community-muted">{t.polish.guestHint}</p>
         </>
       )}
     </form>

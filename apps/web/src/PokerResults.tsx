@@ -1,3 +1,4 @@
+import { t, pokerHandLabel } from './i18n';
 import type { PokerSnapshot } from './lobbyConnection';
 import { PlayerAvatar } from './Avatar';
 import { Icon } from './Icon';
@@ -29,11 +30,11 @@ export function PokerResults({
   return (
     <div className="poker-results">
       <span className="poker-results-mark">♠</span>
-      <h2>Fin de la table</h2>
+      <h2>{t.pk.finished}</h2>
       <p>
         {state.settings.mode === 'ultimate'
-          ? 'Les mains ont été comparées au dealer.'
-          : 'Le meilleur jeu remporte le pot.'}
+          ? t.pk.ultimateResult
+          : t.pk.holdemResult}
       </p>
       <ol>
         {ranked.map(({ lobby, game }, index) => (
@@ -45,7 +46,7 @@ export function PokerResults({
             <PlayerAvatar avatar={lobby.avatar} />
             <span className="poker-result-player">
               <strong>{lobby.displayName}</strong>
-              <small>{game.handLabel || game.outcome}</small>
+              <small>{pokerHandLabel(game.handLabel) || game.outcome}</small>
             </span>
             <strong className="poker-result-chips">{game.chips} ◉</strong>
           </li>
@@ -57,10 +58,10 @@ export function PokerResults({
           type="button"
           onClick={() => send('return')}
         >
-          Retour au lobby <Icon name="arrow" />
+          {t.returnToLobby} <Icon name="arrow" />
         </button>
       ) : (
-        <p className="waiting-note">En attente de l’hôte</p>
+        <p className="waiting-note">{t.waitingHost}</p>
       )}
     </div>
   );

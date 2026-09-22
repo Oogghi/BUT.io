@@ -1,10 +1,6 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { useEffect, useState, type ReactNode } from 'react';
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-  type MotionStyle,
-} from 'motion/react';
+import { AnimatePresence, motion, type MotionStyle } from 'motion/react';
 import {
   mapIds,
   maps,

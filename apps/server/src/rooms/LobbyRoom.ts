@@ -3,14 +3,22 @@ import { Room, type Client } from '@colyseus/core';
 import { schema, t } from '@colyseus/schema';
 import {
   DISPLAY_NAME_MAX_LENGTH,
-  isAvatar,
+  parseCosmeticLoadout,
+  resolvePlayerAvatar,
   type GameMetadata,
   type AnyMatchResult,
   type JoinOptions,
   type LobbyErrorCode,
   type LobbyPhase,
 } from '@but/shared';
-import { recordAuthoritativeMatch, verifiedUserId } from '../rewards.js';
+import {
+  equippedCosmetics,
+  recordAuthoritativeMatch,
+  verifiedUserId,
+} from '../rewards.js';
+
+/** Close code sent to a player the host removed. */
+const KICKED_CODE = 4002;
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const START_DELAY_MS = 1000;
@@ -22,6 +30,7 @@ const LobbyPlayerSchema = schema(
   {
     displayName: t.string(),
     avatar: t.uint8(),
+    cosmetics: t.string(),
     ready: t.boolean(),
     spectator: t.boolean(),
   },
@@ -76,6 +85,7 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
 }> {
   private startTimer: { clear(): void } | undefined;
   private readonly accountIds = new Map<string, string>();
+  private readonly cosmetics = new Map<string, string>();
   private activeMatchId = '';
   private matchStartedAt = 0;
   private matchRecorded = false;
@@ -125,6 +135,9 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.onMessage('return', (client, payload: unknown) =>
       this.handleReturn(client, payload),
     );
+    this.onMessage('kick', (client, target: unknown) =>
+      this.handleKick(client, target),
+    );
   }
 
   /** The shared fields of a fresh lobby state. */
@@ -146,25 +159,39 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     const accountId = await verifiedUserId(
       (options as JoinOptions | undefined)?.authToken,
     );
-    if (accountId) this.accountIds.set(client.sessionId, accountId);
+    if (accountId) {
+      const loadout = await equippedCosmetics(accountId);
+      this.accountIds.set(client.sessionId, accountId);
+      this.cosmetics.set(client.sessionId, JSON.stringify(loadout));
+    }
     return true;
   }
 
   // Recheck the phase: a reserved seat may connect after the host starts.
   public onJoin(client: Client, options: JoinOptions) {
-    if (this.state.phase !== 'lobby')
+    if (this.state.phase !== 'lobby') {
+      this.accountIds.delete(client.sessionId);
+      this.cosmetics.delete(client.sessionId);
       throw new Error('lobby-closed' satisfies LobbyErrorCode);
+    }
     const displayName = options.displayName.trim();
-    // The avatar is cosmetic: fall back to the first look instead of rejecting the join.
-    const avatar = isAvatar(options.avatar) ? options.avatar : 0;
-    if (this.state.players.size >= this.capacity())
+    // Paid avatars come only from the ownership-checked account loadout.
+    const avatar = resolvePlayerAvatar(
+      options.avatar,
+      parseCosmeticLoadout(this.cosmetics.get(client.sessionId)),
+    );
+    if (this.state.players.size >= this.capacity()) {
+      this.accountIds.delete(client.sessionId);
+      this.cosmetics.delete(client.sessionId);
       throw new Error('lobby-full' satisfies LobbyErrorCode);
+    }
     if (!this.state.hostId) this.state.hostId = client.sessionId;
     this.state.players.set(
       client.sessionId,
       new LobbyPlayerSchema({
         displayName,
         avatar,
+        cosmetics: this.cosmetics.get(client.sessionId) ?? '{}',
         ready: false,
         spectator: false,
       }),
@@ -175,16 +202,20 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
   public onDrop(client: Client) {
     this.removePlayer(client.sessionId);
     this.accountIds.delete(client.sessionId);
+    this.cosmetics.delete(client.sessionId);
   }
 
   public onLeave(client: Client) {
     this.removePlayer(client.sessionId);
     this.accountIds.delete(client.sessionId);
+    this.cosmetics.delete(client.sessionId);
   }
 
   public onDispose() {
     this.startTimer?.clear();
     this.startTimer = undefined;
+    this.accountIds.clear();
+    this.cosmetics.clear();
     reservedCodes.delete(this.state?.code ?? this.roomId);
   }
 
@@ -313,6 +344,27 @@ export abstract class LobbyRoom<State extends LobbyStateInstance> extends Room<{
     this.matchRecorded = false;
     this.resetReady();
     void this.unlock();
+  }
+
+  /**
+   * The host removes another player, in any phase. They are told why before the
+   * connection closes, and leave the match the same way a departure would.
+   */
+  private handleKick(client: Client, target: unknown) {
+    if (client.sessionId !== this.state.hostId)
+      return this.sendError(client, 'host-only');
+    if (
+      typeof target !== 'string' ||
+      target === client.sessionId ||
+      !this.state.players.has(target)
+    )
+      return this.sendError(client, 'invalid-payload');
+    const kicked = this.clients.find((entry) => entry.sessionId === target);
+    this.removePlayer(target);
+    this.accountIds.delete(target);
+    this.cosmetics.delete(target);
+    kicked?.send('kicked');
+    kicked?.leave(KICKED_CODE);
   }
 
   private async persistMatchResult() {

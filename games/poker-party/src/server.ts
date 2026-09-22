@@ -13,6 +13,11 @@ import {
   type Suit,
 } from './index.js';
 
+const ULTIMATE_DECISIONS: readonly PokerStage[] = [
+  'ultimate-preflop',
+  'ultimate-flop',
+  'ultimate-river',
+];
 const SUITS: readonly Suit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
 const RANKS: readonly Rank[] = [
   '2',
@@ -244,7 +249,6 @@ export class PokerGame {
   private dealerHand: Card[] = [];
   private community: Card[] = [];
   private visibleCommunity = 0;
-  private acted = new Set<string>();
   private street = 0;
   private buttonIndex = -1;
   private locked = new Set<string>();
@@ -349,18 +353,36 @@ export class PokerGame {
   }
 
   act(id: string, action: unknown, now: number): PokerActionError | null {
-    if (
-      !this.activePlayerId ||
-      (this.stage !== 'ultimate-preflop' &&
-        this.stage !== 'ultimate-flop' &&
-        this.stage !== 'ultimate-river' &&
-        !this.stage.startsWith('holdem-'))
-    )
+    if (this.settings.mode === 'ultimate') {
+      if (!ULTIMATE_DECISIONS.includes(this.stage)) return 'not-playing';
+      if (
+        !this.awaitsDecision(id) ||
+        (this.activePlayerId && id !== this.activePlayerId)
+      )
+        return 'not-your-turn';
+      return this.actUltimate(id, action, now);
+    }
+    if (!this.activePlayerId || !this.stage.startsWith('holdem-'))
       return 'not-playing';
     if (id !== this.activePlayerId) return 'not-your-turn';
-    if (this.settings.mode === 'ultimate')
-      return this.actUltimate(id, action, now);
     return this.actHoldem(id, action, now);
+  }
+
+  /**
+   * Whether this player still has to decide on the current Ultimate street: everyone
+   * in the hand without a play bet chooses once. With every hand face up
+   * (`showAllCards`) they all choose at once; otherwise one by one in seat order.
+   */
+  awaitsDecision(id: string) {
+    const player = this.players.get(id);
+    return Boolean(
+      player &&
+      ULTIMATE_DECISIONS.includes(this.stage) &&
+      !player.departed &&
+      !player.folded &&
+      !player.bet.play &&
+      !player.acted,
+    );
   }
 
   expire(now: number) {
@@ -381,11 +403,18 @@ export class PokerGame {
         this.completeMatch('rounds-complete');
       else this.beginRound(now);
     } else if (this.settings.mode === 'ultimate') {
-      this.act(
-        this.activePlayerId,
-        this.stage === 'ultimate-river' ? 'fold' : 'check',
-        now,
-      );
+      // Whoever has not decided when the clock runs out checks (folds on the river).
+      const stage = this.stage;
+      const pending = this.activePlayerId
+        ? [this.activePlayerId]
+        : this.order.filter((entry) => this.awaitsDecision(entry));
+      for (const id of pending)
+        if (this.stage === stage)
+          this.actUltimate(
+            id,
+            stage === 'ultimate-river' ? 'fold' : 'check',
+            now,
+          );
     } else {
       const player = this.players.get(this.activePlayerId);
       this.act(
@@ -404,7 +433,12 @@ export class PokerGame {
     player.folded = true;
     player.acted = true;
     this.lock(id, now);
-    if (id === this.activePlayerId) this.advance(now);
+    if (
+      id === this.activePlayerId ||
+      (this.settings.mode === 'ultimate' &&
+        ULTIMATE_DECISIONS.includes(this.stage))
+    )
+      this.advance(now);
     if (
       [...this.players.values()].filter((entry) => !entry.departed).length <
       (this.settings.mode === 'ultimate' ? 1 : 2)
@@ -423,7 +457,6 @@ export class PokerGame {
     this.winnerId = '';
     this.resultReason = '';
     this.street = 0;
-    this.acted.clear();
     this.locked.clear();
     for (const player of this.players.values()) {
       player.cards = [];
@@ -459,7 +492,8 @@ export class PokerGame {
     this.community = take(this.cards, 5);
     this.visibleCommunity = 0;
     this.stage = 'ultimate-preflop';
-    this.acted.clear();
+    this.activePlayerId = '';
+    this.deadline = now + this.settings.bettingSeconds * 1000;
     this.lastEvent = 'deal';
     this.advanceUltimate(now);
   }
@@ -504,7 +538,6 @@ export class PokerGame {
           : `Joue ×${multiple}`;
     player.folded = action === 'fold';
     player.acted = true;
-    this.acted.add(id);
     this.lastEvent = action;
     this.advance(now);
     return null;
@@ -604,28 +637,29 @@ export class PokerGame {
     else this.advanceHoldem(now);
   }
 
-  /** One play bet per hand: players who made it sit out the later streets. */
+  /**
+   * Waits while anyone still has a decision on this street, then opens the next one
+   * (one play bet per hand: players who made it sit out the later streets). Turn by
+   * turn, each player gets their own clock; simultaneous streets share one.
+   */
   private advanceUltimate(now: number) {
     for (;;) {
-      const next = this.order.find((id) => {
-        const player = this.players.get(id)!;
-        return (
-          !this.acted.has(id) &&
-          !player.departed &&
-          !player.folded &&
-          !player.bet.play
-        );
-      });
-      if (next) {
-        this.activePlayerId = next;
-        this.deadline = now + this.settings.bettingSeconds * 1000;
+      const pending = this.order.filter((id) => this.awaitsDecision(id));
+      if (pending.length) {
+        const next = this.settings.showAllCards ? '' : pending[0]!;
+        if (next !== this.activePlayerId) {
+          this.activePlayerId = next;
+          this.deadline = now + this.settings.bettingSeconds * 1000;
+        }
         return;
       }
+      this.activePlayerId = '';
       if (this.street >= 2) return this.settleUltimate(now);
       this.street += 1;
       this.stage = stageFor('ultimate', this.street);
       this.visibleCommunity = this.street === 1 ? 3 : 5;
-      this.acted.clear();
+      for (const player of this.players.values()) player.acted = false;
+      this.deadline = now + this.settings.bettingSeconds * 1000;
     }
   }
 
@@ -655,7 +689,6 @@ export class PokerGame {
     this.stage = stageFor('holdem', this.street);
     this.visibleCommunity = this.street === 1 ? 3 : this.street === 2 ? 4 : 5;
     this.currentBet = 0;
-    this.acted.clear();
     // Every live player gets a fresh decision on the new street.
     for (const player of this.players.values()) {
       player.streetBet = 0;

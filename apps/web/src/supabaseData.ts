@@ -5,7 +5,13 @@ import {
   winRate,
   type GlobalStats,
 } from '@but/shared';
-import { isCosmeticId, type CosmeticId } from './cosmetics.ts';
+import {
+  isCosmeticId,
+  normalizeCosmeticLoadout,
+  type CosmeticId,
+  type CosmeticSlot,
+  type CosmeticLoadout,
+} from '@but/shared';
 
 const url = import.meta.env?.VITE_SUPABASE_URL;
 const publishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -80,12 +86,14 @@ export interface RewardState {
   coins: number;
   ownedCosmetics: CosmeticId[];
   equippedCosmetic: CosmeticId | null;
+  equippedCosmetics: CosmeticLoadout;
 }
 
 interface WalletRow {
   user_id: string;
   coins: number | null;
   equipped_cosmetic: string | null;
+  equipped_cosmetics?: unknown;
 }
 
 interface CosmeticRow {
@@ -578,6 +586,10 @@ function normalizeRewardState(
   return {
     coins: Math.max(0, number(wallet?.coins)),
     ownedCosmetics: owned.map((row) => row.cosmetic_id).filter(isCosmeticId),
+    equippedCosmetics: normalizeCosmeticLoadout(
+      wallet?.equipped_cosmetics ?? { frame: wallet?.equipped_cosmetic },
+      owned.map((row) => row.cosmetic_id),
+    ),
     equippedCosmetic: isCosmeticId(wallet?.equipped_cosmetic)
       ? wallet.equipped_cosmetic
       : null,
@@ -589,7 +601,7 @@ export async function loadRewardState(userId: string): Promise<RewardState> {
   const [walletResult, ownedResult] = await Promise.all([
     db
       .from('player_wallets')
-      .select('user_id,coins,equipped_cosmetic')
+      .select('user_id,coins,equipped_cosmetic,equipped_cosmetics')
       .eq('user_id', userId)
       .maybeSingle(),
     db
@@ -637,8 +649,10 @@ export async function purchaseCosmetic(
 
 export async function setEquippedCosmetic(
   cosmeticId: CosmeticId | null,
+  slot: CosmeticSlot = 'frame',
 ): Promise<Pick<RewardState, 'coins' | 'equippedCosmetic'>> {
-  const { data, error } = await client().rpc('set_equipped_cosmetic', {
+  const { data, error } = await client().rpc('set_cosmetic_slot', {
+    p_slot: slot,
     p_cosmetic_id: cosmeticId,
   });
   rewardFailure(error);

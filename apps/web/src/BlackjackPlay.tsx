@@ -1,3 +1,4 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import {
   createContext,
   useContext,
@@ -11,12 +12,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import {
-  AnimatePresence,
-  motion,
-  useReducedMotion,
-  type MotionStyle,
-} from 'motion/react';
+import { AnimatePresence, motion, type MotionStyle } from 'motion/react';
 import type {
   BlackjackAction,
   BlackjackBet,
@@ -29,6 +25,8 @@ import { PlayerAvatar } from './Avatar';
 import { Icon } from './Icon';
 import { spring } from './spring';
 import { t } from './i18n';
+import { CardBack, CardCosmetics, useCardCosmetics } from './CosmeticPreview';
+import { cardDealOrigin } from './cosmetics';
 
 type Settings = BlackjackSnapshot['settings'];
 type LobbyPlayer = BlackjackSnapshot['players'][number];
@@ -59,11 +57,14 @@ export function BlackjackPlay({
   sessionId,
   send,
   error,
+  onPlayerClick,
 }: {
   state: BlackjackSnapshot;
   sessionId: string;
   send: (type: string, payload?: unknown) => void;
   error: string;
+  /** Opens the player's card (stats, and kicking for the host). */
+  onPlayerClick: (id: string, anchor: HTMLElement) => void;
 }) {
   const { game, settings } = state;
   const self = game.players.get(sessionId);
@@ -168,6 +169,7 @@ export function BlackjackPlay({
                 settings={settings}
                 onBet={setBet}
                 deal={{ order: index, of: seats.length }}
+                onPlayerClick={onPlayerClick}
               />
             ))}
           </ul>
@@ -412,6 +414,7 @@ function Seat({
   settings,
   onBet,
   deal,
+  onPlayerClick,
 }: {
   player: LobbyPlayer;
   hand: BlackjackPlayerState | undefined;
@@ -423,188 +426,205 @@ function Seat({
   settings: Settings;
   onBet: Dispatch<SetStateAction<BlackjackBet>>;
   deal: DealSlot;
+  onPlayerClick: (id: string, anchor: HTMLElement) => void;
 }) {
   if (!hand) return null;
   const sideBets = settings.sideBetsEnabled;
   // The server opens a hand as soon as a bet locks, before any card is dealt.
   const dealt = hand.hands.some((each) => each.cards.length > 0);
   return (
-    <li
-      className={`bj-seat${active ? ' is-active' : ''}${you ? ' is-you' : ''}`}
-      style={position}
-    >
-      <div className="bj-seat-hands">
-        {/*
+    <CardCosmetics value={player.cosmetics}>
+      <li
+        className={`bj-seat${active ? ' is-active' : ''}${you ? ' is-you' : ''}`}
+        style={position}
+      >
+        <div className="bj-seat-hands">
+          {/*
           A seat always keeps one hand mounted, empty or not. It renders nothing until
           cards arrive, but it has to exist beforehand to measure its path from the
           shoe — a row mounted in the same commit as its first cards is measured too
           late for them to fly in from anywhere.
         */}
-        {(hand.hands.length > 0 ? hand.hands : [EMPTY_HAND]).map(
-          (each, index) => (
-            <Hand
-              key={index}
-              hand={each}
-              active={active && index === activeHandIndex}
-              deal={deal}
-            />
-          ),
-        )}
+          {(hand.hands.length > 0 ? hand.hands : [EMPTY_HAND]).map(
+            (each, index) => (
+              <Hand
+                key={index}
+                hand={each}
+                active={active && index === activeHandIndex}
+                deal={deal}
+              />
+            ),
+          )}
 
-        {/* Locked bets stay on the felt, so you can read the table before the deal. */}
-        {!bet && !dealt && hand.bet.main > 0 && (
-          <div className="bj-spots is-locked">
-            {(
-              [
-                [t.bj.mainBet, hand.bet.main, false],
-                [t.bj.perfectPairs, hand.bet.perfectPairs, true],
-                [t.bj.twentyOnePlusThree, hand.bet.twentyOnePlusThree, true],
-              ] as const
-            )
-              .filter(([, amount]) => amount > 0)
-              .map(([label, amount, small]) => (
-                <motion.span
-                  key={label}
-                  className={`bj-spot has-chips is-locked${small ? ' is-side' : ''}`}
-                  aria-label={`${label}: ${amount}`}
-                  initial={{ scale: 0.4, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={spring}
-                >
-                  <ChipStack total={amount} />
-                </motion.span>
-              ))}
-          </div>
-        )}
+          {/* Locked bets stay on the felt, so you can read the table before the deal. */}
+          {!bet && !dealt && hand.bet.main > 0 && (
+            <div className="bj-spots is-locked">
+              {(
+                [
+                  [t.bj.mainBet, hand.bet.main, false],
+                  [t.bj.perfectPairs, hand.bet.perfectPairs, true],
+                  [t.bj.twentyOnePlusThree, hand.bet.twentyOnePlusThree, true],
+                ] as const
+              )
+                .filter(([, amount]) => amount > 0)
+                .map(([label, amount, small]) => (
+                  <motion.span
+                    key={label}
+                    className={`bj-spot has-chips is-locked${small ? ' is-side' : ''}`}
+                    aria-label={`${label}: ${amount}`}
+                    initial={{ scale: 0.4, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={spring}
+                  >
+                    <ChipStack total={amount} />
+                  </motion.span>
+                ))}
+            </div>
+          )}
 
-        {/*
+          {/*
         The table's own betting layout: optional side-bet circles sit behind the main
         one, toward the dealer, so they read as extras rather than three equal choices.
       */}
-        {bet && (
-          <div className="bj-spots">
-            {sideBets &&
-              (settings.perfectPairsEnabled ||
-                settings.twentyOnePlusThreeEnabled) && (
-                <div className="bj-side-spots">
-                  <span className="bj-side-caption">{t.bj.sideBets}</span>
-                  <div>
-                    {settings.perfectPairsEnabled && (
-                      <BetSpot
-                        side
-                        label={t.bj.perfectPairs}
-                        caption={t.bj.pairsShort}
-                        payouts={[
-                          [t.bj.mixedPair, settings.perfectPairMixedPayout],
-                          [t.bj.coloredPair, settings.perfectPairColoredPayout],
-                          [t.bj.perfectPair, settings.perfectPairPayout],
-                        ]}
-                        value={bet.perfectPairs}
-                        step={settings.minSideBet}
-                        disabled={
-                          !bet.perfectPairs && settings.minSideBet > hand.chips
-                        }
-                        onAdjust={(direction) =>
-                          onBet((previous) =>
-                            adjust(
-                              previous,
-                              'perfectPairs',
-                              direction * settings.minSideBet,
-                              { chips: hand.chips, max: settings.maxSideBet },
-                            ),
-                          )
-                        }
-                      />
-                    )}
-                    {settings.twentyOnePlusThreeEnabled && (
-                      <BetSpot
-                        side
-                        label={t.bj.twentyOnePlusThree}
-                        caption="21+3"
-                        payouts={[
-                          [t.bj.flush, settings.twentyOnePlusThreeFlushPayout],
-                          [
-                            t.bj.straight,
-                            settings.twentyOnePlusThreeStraightPayout,
-                          ],
-                          [t.bj.trips, settings.twentyOnePlusThreeTripsPayout],
-                          [
-                            t.bj.straightFlush,
-                            settings.twentyOnePlusThreeStraightFlushPayout,
-                          ],
-                          [
-                            t.bj.suitedTrips,
-                            settings.twentyOnePlusThreeSuitedTripsPayout,
-                          ],
-                        ]}
-                        value={bet.twentyOnePlusThree}
-                        step={settings.minSideBet}
-                        disabled={
-                          !bet.twentyOnePlusThree &&
-                          settings.minSideBet > hand.chips
-                        }
-                        onAdjust={(direction) =>
-                          onBet((previous) =>
-                            adjust(
-                              previous,
-                              'twentyOnePlusThree',
-                              direction * settings.minSideBet,
-                              { chips: hand.chips, max: settings.maxSideBet },
-                            ),
-                          )
-                        }
-                      />
-                    )}
+          {bet && (
+            <div className="bj-spots">
+              {sideBets &&
+                (settings.perfectPairsEnabled ||
+                  settings.twentyOnePlusThreeEnabled) && (
+                  <div className="bj-side-spots">
+                    <span className="bj-side-caption">{t.bj.sideBets}</span>
+                    <div>
+                      {settings.perfectPairsEnabled && (
+                        <BetSpot
+                          side
+                          label={t.bj.perfectPairs}
+                          caption={t.bj.pairsShort}
+                          payouts={[
+                            [t.bj.mixedPair, settings.perfectPairMixedPayout],
+                            [
+                              t.bj.coloredPair,
+                              settings.perfectPairColoredPayout,
+                            ],
+                            [t.bj.perfectPair, settings.perfectPairPayout],
+                          ]}
+                          value={bet.perfectPairs}
+                          step={settings.minSideBet}
+                          disabled={
+                            !bet.perfectPairs &&
+                            settings.minSideBet > hand.chips
+                          }
+                          onAdjust={(direction) =>
+                            onBet((previous) =>
+                              adjust(
+                                previous,
+                                'perfectPairs',
+                                direction * settings.minSideBet,
+                                { chips: hand.chips, max: settings.maxSideBet },
+                              ),
+                            )
+                          }
+                        />
+                      )}
+                      {settings.twentyOnePlusThreeEnabled && (
+                        <BetSpot
+                          side
+                          label={t.bj.twentyOnePlusThree}
+                          caption="21+3"
+                          payouts={[
+                            [
+                              t.bj.flush,
+                              settings.twentyOnePlusThreeFlushPayout,
+                            ],
+                            [
+                              t.bj.straight,
+                              settings.twentyOnePlusThreeStraightPayout,
+                            ],
+                            [
+                              t.bj.trips,
+                              settings.twentyOnePlusThreeTripsPayout,
+                            ],
+                            [
+                              t.bj.straightFlush,
+                              settings.twentyOnePlusThreeStraightFlushPayout,
+                            ],
+                            [
+                              t.bj.suitedTrips,
+                              settings.twentyOnePlusThreeSuitedTripsPayout,
+                            ],
+                          ]}
+                          value={bet.twentyOnePlusThree}
+                          step={settings.minSideBet}
+                          disabled={
+                            !bet.twentyOnePlusThree &&
+                            settings.minSideBet > hand.chips
+                          }
+                          onAdjust={(direction) =>
+                            onBet((previous) =>
+                              adjust(
+                                previous,
+                                'twentyOnePlusThree',
+                                direction * settings.minSideBet,
+                                { chips: hand.chips, max: settings.maxSideBet },
+                              ),
+                            )
+                          }
+                        />
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            <BetSpot
-              label={t.bj.mainBet}
-              caption={t.bj.betSpot}
-              value={bet.main}
-              step={settings.minBet}
-              disabled={!bet.main && settings.minBet > hand.chips}
-              quick={quickBets(
-                Math.min(
-                  settings.maxBet,
-                  hand.chips - bet.perfectPairs - bet.twentyOnePlusThree,
-                ),
-                settings.minBet,
-              )}
-              onSet={(amount) =>
-                onBet((previous) =>
-                  adjust(previous, 'main', amount - previous.main, {
-                    chips: hand.chips,
-                    max: settings.maxBet,
-                  }),
-                )
-              }
-              onAdjust={(direction) =>
-                onBet((previous) =>
-                  adjust(previous, 'main', direction * settings.minBet, {
-                    chips: hand.chips,
-                    max: settings.maxBet,
-                  }),
-                )
-              }
-            />
-          </div>
-        )}
-      </div>
+                )}
+              <BetSpot
+                label={t.bj.mainBet}
+                caption={t.bj.betSpot}
+                value={bet.main}
+                step={settings.minBet}
+                disabled={!bet.main && settings.minBet > hand.chips}
+                quick={quickBets(
+                  Math.min(
+                    settings.maxBet,
+                    hand.chips - bet.perfectPairs - bet.twentyOnePlusThree,
+                  ),
+                  settings.minBet,
+                )}
+                onSet={(amount) =>
+                  onBet((previous) =>
+                    adjust(previous, 'main', amount - previous.main, {
+                      chips: hand.chips,
+                      max: settings.maxBet,
+                    }),
+                  )
+                }
+                onAdjust={(direction) =>
+                  onBet((previous) =>
+                    adjust(previous, 'main', direction * settings.minBet, {
+                      chips: hand.chips,
+                      max: settings.maxBet,
+                    }),
+                  )
+                }
+              />
+            </div>
+          )}
+        </div>
 
-      <div className="bj-nameplate">
-        <PlayerAvatar avatar={player.avatar} />
-        <span>
-          <strong title={player.displayName}>{player.displayName}</strong>
-          <motion.small key={hand.chips} {...pop}>
-            {hand.chips}
-          </motion.small>
-        </span>
-        {you && <span className="sr-only">{t.you}</span>}
-      </div>
+        <button
+          type="button"
+          className="bj-nameplate"
+          onClick={(event) => onPlayerClick(player.id, event.currentTarget)}
+        >
+          <PlayerAvatar avatar={player.avatar} />
+          <span>
+            <strong title={player.displayName}>{player.displayName}</strong>
+            <motion.small key={hand.chips} {...pop}>
+              {hand.chips}
+            </motion.small>
+          </span>
+          {you && <span className="sr-only">{t.you}</span>}
+        </button>
 
-      <SideBetWins player={hand} />
-    </li>
+        <SideBetWins player={hand} />
+      </li>
+    </CardCosmetics>
   );
 }
 
@@ -951,13 +971,14 @@ function PlayingCard({
   reduced: boolean;
 }) {
   const red = card?.suit === 'diamonds' || card?.suit === 'hearts';
+  const cosmetics = useCardCosmetics();
   return (
     <motion.div
       className="bj-card"
       initial={
         reduced
           ? false
-          : { ...from, rotate: -160, scale: 0.72, opacity: 0, zIndex: 20 }
+          : { ...cardDealOrigin(cosmetics['card-animation'], from), zIndex: 20 }
       }
       animate={{
         x: 0,
@@ -968,7 +989,7 @@ function PlayingCard({
         opacity: 1,
         zIndex: 0,
       }}
-      exit={{ y: 26, opacity: 0, scale: 0.9 }}
+      exit={reduced ? { opacity: 0 } : { y: 26, opacity: 0, scale: 0.9 }}
       transition={{
         ...spring,
         delay,
@@ -979,9 +1000,13 @@ function PlayingCard({
     >
       <motion.div
         className="bj-card-inner"
-        initial={false}
+        initial={reduced ? false : { rotateY: 180 }}
         animate={{ rotateY: card ? 0 : 180 }}
-        transition={reduced ? { duration: 0 } : { ...spring, bounce: 0.3 }}
+        transition={
+          reduced
+            ? { duration: 0 }
+            : { ...spring, bounce: 0.3, delay: delay + 0.12 }
+        }
       >
         {/* Rank in the corner, so an overlapped card still reads. */}
         <span className={`bj-card-face${red ? ' is-red' : ''}`}>
@@ -992,7 +1017,7 @@ function PlayingCard({
           <span className="bj-card-pip">{suitSymbol(card?.suit)}</span>
         </span>
         <span className="bj-card-back">
-          <img src="/blackjack-party/card-back.png" alt="" />
+          <CardBack id={cosmetics['card-back']} />
         </span>
       </motion.div>
     </motion.div>

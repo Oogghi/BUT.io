@@ -1,10 +1,10 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { forwardRef, useRef, type ReactNode } from 'react';
 import {
   AnimatePresence,
   MotionConfig,
   motion,
   useIsPresent,
-  useReducedMotion,
   type MotionStyle,
 } from 'motion/react';
 import { Icon } from './Icon';
@@ -20,13 +20,21 @@ interface Props {
     image: string;
   };
   open: boolean;
+  expandedRow?: number;
   pending: boolean;
   onToggle: () => void;
   children?: ReactNode;
 }
 
 /** One layout participant per tile; child projection keeps artwork and text undistorted. */
-export function GameCard({ game, open, pending, onToggle, children }: Props) {
+export function GameCard({
+  game,
+  open,
+  expandedRow = 1,
+  pending,
+  onToggle,
+  children,
+}: Props) {
   const reducedMotion = useReducedMotion();
   const tile = useRef<HTMLButtonElement>(null);
   const transition = {
@@ -48,6 +56,7 @@ export function GameCard({ game, open, pending, onToggle, children }: Props) {
         className={`game-selection ${open ? 'is-open' : ''}`}
         style={
           {
+            '--expanded-row': expandedRow,
             '--game-color': `var(--${game.color})`,
             '--game-shadow': `var(--${game.color}-shadow)`,
             borderRadius: 32,
@@ -60,7 +69,7 @@ export function GameCard({ game, open, pending, onToggle, children }: Props) {
           if (
             open &&
             !(event.target as Element).closest(
-              'button, a, input, select, textarea, label',
+              'button, a, input, select, textarea, label, .room-options',
             )
           ) {
             close();
@@ -76,6 +85,7 @@ export function GameCard({ game, open, pending, onToggle, children }: Props) {
         <motion.button
           layout={!reducedMotion}
           ref={tile}
+          id={`${game.id}-tile`}
           type="button"
           className="game-card"
           style={{ borderRadius: 32 }}
@@ -116,41 +126,28 @@ export function GameCard({ game, open, pending, onToggle, children }: Props) {
           </motion.span>
         </motion.button>
         <AnimatePresence initial={false} mode="popLayout">
-          {open && (
-            <CardOptions
-              key="options"
-              id={`${game.id}-options`}
-              name={game.name}
-              reducedMotion={reducedMotion}
-            >
-              <button
-                className="selection-close"
-                type="button"
-                aria-label={t.closeOptions}
-                disabled={pending}
-                onClick={close}
-              >
-                ×
-              </button>
-              {children}
-            </CardOptions>
-          )}
+          {open && children}
         </AnimatePresence>
       </motion.article>
     </MotionConfig>
   );
 }
 
-// Exiting content keeps its former dimensions without holding a grid cell open.
-const CardOptions = forwardRef<
+// The shared action tray becomes inert while its exit transition completes.
+export const CardOptions = forwardRef<
   HTMLElement,
   {
     id: string;
     name: string;
     reducedMotion: boolean | null;
     children: ReactNode;
+    color: string;
+    onClose: () => void;
   }
->(function CardOptions({ id, name, reducedMotion, children }, ref) {
+>(function CardOptions(
+  { id, name, reducedMotion, children, color, onClose },
+  ref,
+) {
   const present = useIsPresent();
   return (
     <motion.section
@@ -159,6 +156,14 @@ const CardOptions = forwardRef<
       id={id}
       aria-label={name}
       className="room-options"
+      style={{ '--game-color': `var(--${color})` } as MotionStyle}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
       aria-hidden={!present}
       inert={!present}
       initial={reducedMotion ? false : { opacity: 0, y: 8 }}
@@ -168,7 +173,6 @@ const CardOptions = forwardRef<
         transition: {
           type: 'tween',
           duration: reducedMotion ? 0 : 0.2,
-          delay: reducedMotion ? 0 : 0.12,
         },
       }}
       exit={{

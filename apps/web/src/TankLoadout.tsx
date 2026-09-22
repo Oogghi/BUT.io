@@ -1,3 +1,4 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import {
   useEffect,
   useRef,
@@ -5,7 +6,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   actions,
   isTankId,

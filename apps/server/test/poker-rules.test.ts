@@ -78,6 +78,29 @@ test('an Ultimate Poker play bet skips the remaining decisions', () => {
   assert.equal(game.publicPlayer('b').payout, 0);
 });
 
+test('with every hand visible, Ultimate Poker players decide at the same time', () => {
+  const game = new PokerGame(
+    ['a', 'b'],
+    settings({ showAllCards: true }),
+    0,
+    () => 0.42,
+  );
+  game.placeBet('a', { ante: 25 }, 1);
+  game.placeBet('b', { ante: 25 }, 1);
+  assert.equal(game.activePlayerId, '');
+  // Either player may go first; the street waits for both.
+  assert.equal(game.act('b', 'check', 2), null);
+  assert.equal(game.stage, 'ultimate-preflop');
+  assert.equal(game.act('b', 'check', 2), 'not-your-turn');
+  assert.equal(game.act('a', 'raise4', 2), null);
+  assert.equal(game.stage, 'ultimate-flop');
+  assert.equal(game.act('a', 'check', 3), 'not-your-turn');
+  // Whoever has not decided when time runs out checks.
+  assert.equal(game.expire(game.deadline), true);
+  assert.equal(game.stage, 'ultimate-river');
+  assert.equal(game.publicPlayer('b').action, 'Check');
+});
+
 const ultimatePayout = (...args: Parameters<typeof ultimateReturns>) => {
   const returns = ultimateReturns(...args);
   return returns.ante + returns.blind + returns.play;

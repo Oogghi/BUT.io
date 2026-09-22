@@ -1,4 +1,5 @@
 import { Client, type Room } from '@colyseus/sdk';
+import { parseCosmeticLoadout } from '@but/shared';
 import type { BombPartyRoomState } from '@but/bomb-party';
 import {
   defaultBlackjackSettings,
@@ -238,6 +239,7 @@ export function snapshotRoom(room: LobbyRoom) {
       id,
       displayName: player.displayName,
       avatar: player.avatar,
+      cosmetics: parseCosmeticLoadout(player.cosmetics),
       ready: player.ready,
       spectator: player.spectator,
     })),

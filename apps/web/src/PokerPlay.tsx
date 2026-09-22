@@ -1,5 +1,7 @@
+import { t, pokerHandLabel } from './i18n';
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type {
   Card,
   PokerAction,
@@ -16,6 +18,8 @@ import {
   seatPosition,
 } from './BlackjackPlay';
 import { spring } from './spring';
+import { CardBack, CardCosmetics, useCardCosmetics } from './CosmeticPreview';
+import { cardDealOrigin } from './cosmetics';
 
 function suitSymbol(suit: Card['suit'] | undefined) {
   return suit === 'clubs'
@@ -57,6 +61,7 @@ function PokerCard({
   stagger: number;
 }) {
   const reduced = useReducedMotion();
+  const cosmetics = useCardCosmetics();
   const dealAt = reduced ? 0 : Math.max(0, delay + index * stagger);
   const flipAt = reduced ? 0 : dealAt + 0.15;
   const red = card?.suit === 'diamonds' || card?.suit === 'hearts';
@@ -64,15 +69,19 @@ function PokerCard({
     <motion.div
       className="bj-card"
       initial={
-        reduced ? false : { y: -80, rotate: -40, scale: 0.7, opacity: 0 }
+        reduced
+          ? false
+          : cosmetics['card-animation']
+            ? cardDealOrigin(cosmetics['card-animation'])
+            : { x: 0, y: -80, rotate: -40, scale: 0.7, opacity: 0 }
       }
-      animate={{ y: 0, rotate: 0, scale: 1, opacity: 1 }}
+      animate={{ x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 }}
       transition={{
         ...spring,
         delay: dealAt,
         opacity: { duration: 0.12, delay: dealAt },
       }}
-      aria-label={card ? `${card.rank} ${card.suit}` : 'Carte cachée'}
+      aria-label={card ? `${card.rank} ${card.suit}` : t.pk.hiddenCard}
     >
       <motion.div
         className="bj-card-inner"
@@ -90,7 +99,7 @@ function PokerCard({
           <span className="bj-card-pip">{suitSymbol(card?.suit)}</span>
         </span>
         <span className="bj-card-back">
-          <img src="/blackjack-party/card-back.png" alt="" />
+          <CardBack id={cosmetics['card-back']} />
         </span>
       </motion.div>
     </motion.div>
@@ -237,16 +246,22 @@ function showdownTimeline(
   };
 }
 
+const ULTIMATE_DECISIONS: readonly PokerStage[] = [
+  'ultimate-preflop',
+  'ultimate-flop',
+  'ultimate-river',
+];
+
 const STAGE_LABELS: Partial<Record<PokerStage, string>> = {
-  'ultimate-betting': 'Mise',
-  'ultimate-preflop': 'Pré-flop',
-  'ultimate-flop': 'Flop',
-  'ultimate-river': 'River',
-  'holdem-preflop': 'Pré-flop',
-  'holdem-flop': 'Flop',
-  'holdem-turn': 'Turn',
-  'holdem-river': 'River',
-  showdown: 'Abattage',
+  'ultimate-betting': t.pk.bet,
+  'ultimate-preflop': t.pk.preflop,
+  'ultimate-flop': t.pk.flop,
+  'ultimate-river': t.pk.river,
+  'holdem-preflop': t.pk.preflop,
+  'holdem-flop': t.pk.flop,
+  'holdem-turn': t.pk.turn,
+  'holdem-river': t.pk.river,
+  showdown: t.pk.showdown,
 };
 
 function outcomeLabel(seat: PokerPlayerState) {
@@ -259,11 +274,14 @@ export function PokerPlay({
   sessionId,
   send,
   error,
+  onPlayerClick,
 }: {
   state: PokerSnapshot;
   sessionId: string;
   send: (type: string, payload?: unknown) => void;
   error: string;
+  /** Opens the player's card (stats, and kicking for the host). */
+  onPlayerClick: (id: string, anchor: HTMLElement) => void;
 }) {
   const [chosenAnte, setChosenAnte] = useState(0);
   const [chosenRaise, setChosenRaise] = useState(0);
@@ -289,7 +307,21 @@ export function PokerPlay({
   // The round's net lands after the last wager settles (Hold'em has only the pot).
   const settled = showdown && step >= (ultimate ? 3 : 1);
   const betting = game.stage === 'ultimate-betting';
-  const yourTurn = game.activePlayerId === sessionId;
+  // Hold'em and turn-by-turn Ultimate name one player; with every hand face up,
+  // Ultimate streets are simultaneous and everyone still deciding is up.
+  const deciding = (id: string) => {
+    if (game.activePlayerId) return game.activePlayerId === id;
+    const seat = game.players.get(id);
+    return Boolean(
+      seat &&
+      ULTIMATE_DECISIONS.includes(game.stage) &&
+      !seat.departed &&
+      !seat.folded &&
+      !seat.bet.play &&
+      !seat.acted,
+    );
+  };
+  const yourTurn = deciding(sessionId);
   const minAnte = settings.ante;
   const stake = player.bet.ante;
   const maxAnte = Math.floor(player.chips / 2);
@@ -307,9 +339,10 @@ export function PokerPlay({
   // minimum can still shove: the server caps any raise at what the player has.
   const allIn = player.streetBet + player.chips;
   const raise = Math.max(raiseTo, Math.min(allIn, chosenRaise));
-  const activeName =
-    state.players.find((entry) => entry.id === game.activePlayerId)
-      ?.displayName ?? '';
+  const waitingOn = seats
+    .filter((entry) => entry.id !== sessionId && deciding(entry.id))
+    .map((entry) => entry.displayName)
+    .join(', ');
   const act = (value: PokerAction | { type: 'raise'; amount: number }) =>
     send('action', value);
 
@@ -333,7 +366,7 @@ export function PokerPlay({
       onClick={() => act('check')}
       {...buttonIn}
     >
-      Check
+      {t.pk.check}
     </motion.button>
   );
   const fold = (
@@ -344,7 +377,7 @@ export function PokerPlay({
       onClick={() => act('fold')}
       {...buttonIn}
     >
-      Se coucher
+      {t.pk.fold}
     </motion.button>
   );
 
@@ -365,7 +398,7 @@ export function PokerPlay({
                   onClick={() => act('call')}
                   {...buttonIn}
                 >
-                  Suivre <small>{Math.min(toCall, player.chips)}</small>
+                  {t.pk.call} <small>{Math.min(toCall, player.chips)}</small>
                 </motion.button>
               ) : (
                 check
@@ -380,7 +413,7 @@ export function PokerPlay({
                     setChosenRaise(0);
                   }}
                 >
-                  {raise >= allIn ? 'Tapis' : 'Relancer'}{' '}
+                  {raise >= allIn ? t.pk.allIn : t.pk.raise}{' '}
                   <small>{Math.min(raise, allIn)}</small>
                 </button>
                 {allIn > raiseTo && (
@@ -390,7 +423,7 @@ export function PokerPlay({
                     max={allIn}
                     step={1}
                     value={raise}
-                    aria-label="Montant de la relance"
+                    aria-label={t.pk.raiseAmount}
                     onChange={(event) =>
                       setChosenRaise(Number(event.target.value))
                     }
@@ -404,9 +437,7 @@ export function PokerPlay({
     <div className="bj poker" data-your-turn={yourTurn}>
       <header className="bj-bar">
         <div className="bj-round">
-          <strong>
-            Manche {game.round}/{settings.rounds}
-          </strong>
+          <strong>{t.bj.round(game.round, settings.rounds)}</strong>
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={game.stage}
@@ -430,7 +461,7 @@ export function PokerPlay({
 
       <div className="bj-felt" data-crowded={seats.length > 4}>
         {ultimate && (
-          <section className="bj-dealer" aria-label="Dealer">
+          <section className="bj-dealer" aria-label={t.bj.dealerLabel}>
             <Hand
               cards={
                 betting
@@ -445,17 +476,17 @@ export function PokerPlay({
               stagger={showdown ? REVEAL_CARD : DEAL_STAGGER}
             />
             <p className="bj-dealer-name">
-              Dealer
+              {t.bj.dealerLabel}
               {game.dealerHandLabel && (
                 <motion.b
-                  key={game.dealerHandLabel}
+                  key={pokerHandLabel(game.dealerHandLabel)}
                   {...pop}
                   transition={{
                     ...spring,
                     delay: timeline.dealerAt + 2 * REVEAL_CARD,
                   }}
                 >
-                  {game.dealerHandLabel}
+                  {pokerHandLabel(game.dealerHandLabel)}
                 </motion.b>
               )}
             </p>
@@ -471,7 +502,7 @@ export function PokerPlay({
             delay={showdown ? -boardSeen.current * REVEAL_CARD : 0}
             stagger={showdown ? REVEAL_CARD : DEAL_STAGGER}
           />
-          {!ultimate && <Spot label="Pot" amount={game.pot} />}
+          {!ultimate && <Spot label={t.pk.pot} amount={game.pot} />}
         </div>
 
         <ul className="bj-seats">
@@ -485,21 +516,23 @@ export function PokerPlay({
             return (
               <li
                 key={lobbyPlayer.id}
-                className={`bj-seat${game.activePlayerId === lobbyPlayer.id ? ' is-active' : ''}${you ? ' is-you' : ''}${seat.folded ? ' is-folded' : ''}`}
+                className={`bj-seat${deciding(lobbyPlayer.id) ? ' is-active' : ''}${you ? ' is-you' : ''}${seat.folded ? ' is-folded' : ''}`}
                 style={seatPosition(index, seats.length)}
               >
                 <div className="bj-hand">
-                  <Hand
-                    cards={reveal ? seat.cards : seat.cards.map(() => null)}
-                    slots={0}
-                    round={game.round}
-                    delay={showdown ? revealAt : index * SEAT_STAGGER}
-                    stagger={showdown ? 0.3 : DEAL_STAGGER}
-                  />
+                  <CardCosmetics value={lobbyPlayer.cosmetics}>
+                    <Hand
+                      cards={reveal ? seat.cards : seat.cards.map(() => null)}
+                      slots={0}
+                      round={game.round}
+                      delay={showdown ? revealAt : index * SEAT_STAGGER}
+                      stagger={showdown ? 0.3 : DEAL_STAGGER}
+                    />
+                  </CardCosmetics>
                   {reveal && seat.handLabel && !seat.folded && (
                     <div className="bj-hand-meta">
                       <motion.span
-                        key={seat.handLabel}
+                        key={pokerHandLabel(seat.handLabel)}
                         className="bj-value"
                         {...pop}
                         transition={{
@@ -507,7 +540,7 @@ export function PokerPlay({
                           delay: showdown ? revealAt + 0.7 : 0,
                         }}
                       >
-                        {seat.handLabel}
+                        {pokerHandLabel(seat.handLabel)}
                       </motion.span>
                     </div>
                   )}
@@ -529,7 +562,7 @@ export function PokerPlay({
                 <div className="poker-spots">
                   {you && choosing ? (
                     <>
-                      {(['Ante', 'Blind'] as const).map((label) => (
+                      {([t.pk.ante, t.pk.blind] as const).map((label) => (
                         <BetSpot
                           key={label}
                           label={label}
@@ -542,19 +575,19 @@ export function PokerPlay({
                           onAdjust={adjustAnte}
                         />
                       ))}
-                      <Spot label="Play" amount={0} />
+                      <Spot label={t.pk.play} amount={0} />
                     </>
                   ) : ultimate ? (
                     <>
                       <Spot
-                        label="Ante"
+                        label={t.pk.ante}
                         amount={seat.bet.ante}
                         returned={
                           showdown && step >= 2 ? seat.returns.ante : undefined
                         }
                       />
                       <Spot
-                        label="Blind"
+                        label={t.pk.blind}
                         amount={seat.bet.blind}
                         returned={
                           showdown && step >= 3 ? seat.returns.blind : undefined
@@ -564,7 +597,7 @@ export function PokerPlay({
                         }
                       />
                       <Spot
-                        label="Play"
+                        label={t.pk.play}
                         amount={seat.bet.play}
                         returned={
                           showdown && step >= 1 ? seat.returns.play : undefined
@@ -573,12 +606,18 @@ export function PokerPlay({
                     </>
                   ) : (
                     seat.streetBet > 0 && (
-                      <Spot label="Mise" amount={seat.streetBet} />
+                      <Spot label={t.pk.bet} amount={seat.streetBet} />
                     )
                   )}
                 </div>
 
-                <div className="bj-nameplate">
+                <button
+                  type="button"
+                  className="bj-nameplate"
+                  onClick={(event) =>
+                    onPlayerClick(lobbyPlayer.id, event.currentTarget)
+                  }
+                >
                   <PlayerAvatar avatar={lobbyPlayer.avatar} />
                   <span>
                     <strong title={lobbyPlayer.displayName}>
@@ -588,7 +627,7 @@ export function PokerPlay({
                       {seat.chips}
                     </motion.small>
                   </span>
-                </div>
+                </button>
               </li>
             );
           })}
@@ -596,6 +635,13 @@ export function PokerPlay({
       </div>
 
       <footer className="bj-dock" aria-live="polite">
+        {choosing && (
+          <p className="bj-hint">
+            {t.pk.betHint}
+            <span>{t.bj.betLimits(minAnte, maxAnte)}</span>
+          </p>
+        )}
+        {yourTurn && ultimate && <p className="bj-hint">{t.pk.playHint}</p>}
         <AnimatePresence mode="popLayout" initial={false}>
           {choosing ? (
             <motion.button
@@ -609,7 +655,7 @@ export function PokerPlay({
               }}
               {...buttonIn}
             >
-              Miser <small>{ante * 2}</small>
+              {t.pk.bet} <small>{ante * 2}</small>
             </motion.button>
           ) : settled ? (
             <motion.p
@@ -619,7 +665,7 @@ export function PokerPlay({
               animate={{ scale: 1, opacity: 1 }}
               transition={spring}
             >
-              <span>{player.handLabel || 'Manche'}</span>
+              <span>{pokerHandLabel(player.handLabel) || t.pk.round}</span>
               <strong>{outcomeLabel(player)}</strong>
             </motion.p>
           ) : actions ? (
@@ -640,9 +686,9 @@ export function PokerPlay({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {activeName ? (
+              {waitingOn ? (
                 <>
-                  Au tour de <span>{activeName}</span>
+                  {t.pk.waiting} <span>{waitingOn}</span>
                 </>
               ) : (
                 '…'

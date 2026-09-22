@@ -58,7 +58,7 @@ test('stored fields are bounded before being used in the UI', (t) => {
 test('name and avatar survive saving and reloading', (t) => {
   storage(t, null);
   const profile = { displayName: 'Alice', avatar: AVATAR_COUNT - 1 };
-  saveProfile(profile);
+  assert.equal(saveProfile(profile), true);
   assert.deepEqual(loadProfile(), profile);
 });
 
@@ -71,5 +71,5 @@ test('unavailable browser storage does not prevent playing', (t) => {
     },
   });
   assert.deepEqual(loadProfile(), { displayName: '', avatar: 0 });
-  assert.doesNotThrow(() => saveProfile({ displayName: 'Alice', avatar: 0 }));
+  assert.equal(saveProfile({ displayName: 'Alice', avatar: 0 }), false);
 });

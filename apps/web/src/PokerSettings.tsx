@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { PokerMode, PokerSettings } from '@but/poker-party';
 
 export function PokerSettingsPanel({
@@ -21,8 +22,8 @@ export function PokerSettingsPanel({
       <div className="poker-settings-heading">
         <div>
           <span className="poker-settings-kicker">Poker Party</span>
-          <h2 id="poker-settings-title">Choisis ta table</h2>
-          <p>Deux façons de jouer, une seule table jaune.</p>
+          <h2 id="poker-settings-title">{t.pk.chooseTable}</h2>
+          <p>{t.pk.tableHint}</p>
         </div>
         <span className="poker-settings-mark" aria-hidden="true">
           ♠
@@ -31,12 +32,12 @@ export function PokerSettingsPanel({
       <div
         className="poker-mode-switch"
         role="group"
-        aria-label="Mode de Poker"
+        aria-label={t.pk.chooseTable}
       >
         {(
           [
-            ['ultimate', 'Ultimate Poker', 'Contre le dealer · 1 à 6 joueurs'],
-            ['holdem', 'Poker classique', 'Texas Hold’em · 2 à 6 joueurs'],
+            ['ultimate', 'Ultimate Poker', t.pk.ultimateHint],
+            ['holdem', t.pk.holdem, t.pk.holdemHint],
           ] as const
         ).map(([mode, label, hint]) => (
           <button
@@ -54,7 +55,7 @@ export function PokerSettingsPanel({
       </div>
       <div className="poker-settings-fields">
         <label>
-          <span>Manches</span>
+          <span>{t.bj.rounds}</span>
           <input
             type="number"
             min="1"
@@ -65,7 +66,7 @@ export function PokerSettingsPanel({
           />
         </label>
         <label>
-          <span>Jetons de départ</span>
+          <span>{t.bj.startingChips}</span>
           <input
             type="number"
             min="100"
@@ -78,7 +79,7 @@ export function PokerSettingsPanel({
         </label>
         <label>
           <span>
-            {settings.mode === 'ultimate' ? 'Ante minimum' : 'Petite blind'}
+            {settings.mode === 'ultimate' ? t.pk.anteMin : t.pk.smallBlind}
           </span>
           <input
             type="number"
@@ -99,7 +100,7 @@ export function PokerSettingsPanel({
         {settings.mode === 'holdem' && (
           <>
             <label>
-              <span>Grosse blind</span>
+              <span>{t.pk.bigBlind}</span>
               <input
                 type="number"
                 min="1"
@@ -111,7 +112,7 @@ export function PokerSettingsPanel({
               />
             </label>
             <label>
-              <span>Relance minimum</span>
+              <span>{t.pk.minRaise}</span>
               <input
                 type="number"
                 min="1"
@@ -125,7 +126,7 @@ export function PokerSettingsPanel({
           </>
         )}
         <label className="poker-toggle-field">
-          <span>Cartes visibles</span>
+          <span>{t.pk.showCards}</span>
           <input
             type="checkbox"
             checked={settings.showAllCards}
@@ -134,11 +135,7 @@ export function PokerSettingsPanel({
           />
         </label>
       </div>
-      {!host && (
-        <p className="poker-settings-readonly">
-          Seul l’hôte peut modifier la table.
-        </p>
-      )}
+      {!host && <p className="poker-settings-readonly">{t.pk.hostOnly}</p>}
     </section>
   );
 }

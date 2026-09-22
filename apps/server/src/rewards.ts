@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import {
   calculateMatchReward,
+  normalizeCosmeticLoadout,
   type AnyMatchResult,
+  type CosmeticLoadout,
   type MatchReward,
 } from '@but/shared';
 
@@ -28,9 +30,48 @@ export async function verifiedUserId(
   accessToken: unknown,
 ): Promise<string | null> {
   if (!admin || typeof accessToken !== 'string' || !accessToken) return null;
-  const { data, error } = await admin.auth.getUser(accessToken);
-  if (error || !data.user || data.user.is_anonymous) return null;
-  return data.user.id;
+  try {
+    const { data, error } = await admin.auth.getUser(accessToken);
+    if (error || !data.user || data.user.is_anonymous) return null;
+    return data.user.id;
+  } catch {
+    // An unavailable account service must not prevent playing as a guest.
+    return null;
+  }
+}
+
+/** Loads only owned, known cosmetics for an already verified account. */
+export async function equippedCosmetics(
+  userId: string,
+): Promise<CosmeticLoadout> {
+  if (!admin) return {};
+  try {
+    const [wallet, ownership] = await Promise.all([
+      admin
+        .from('player_wallets')
+        .select('equipped_cosmetics,equipped_cosmetic')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      admin
+        .from('player_cosmetics')
+        .select('cosmetic_id')
+        .eq('user_id', userId),
+    ]);
+    if (wallet.error || ownership.error) return {};
+    const owned = (ownership.data ?? [])
+      .map((row) => row.cosmetic_id)
+      .filter((id): id is string => typeof id === 'string');
+    const equipped = wallet.data?.equipped_cosmetics;
+    return normalizeCosmeticLoadout(
+      equipped && typeof equipped === 'object' && !Array.isArray(equipped)
+        ? equipped
+        : { frame: wallet.data?.equipped_cosmetic },
+      owned,
+    );
+  } catch {
+    // Missing migrations or a transient database failure use the default looks.
+    return {};
+  }
 }
 
 interface RewardRow {

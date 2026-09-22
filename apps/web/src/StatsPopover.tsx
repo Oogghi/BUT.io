@@ -1,3 +1,4 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import {
   useCallback,
   useEffect,
@@ -6,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { animate, useReducedMotion } from 'motion/react';
+import { animate } from 'motion/react';
 import { winRate } from '@but/shared';
 import { PlayerAvatar } from './Avatar';
 import { Icon } from './Icon';
@@ -52,10 +53,13 @@ export function StatsPopover({
   player,
   anchor,
   onClose,
+  onKick,
 }: {
   player: StatsSubject | null;
   anchor: HTMLElement | null;
   onClose: () => void;
+  /** Offered to the host for anyone but themselves. */
+  onKick?: (() => void) | undefined;
 }) {
   const popover = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -273,6 +277,15 @@ export function StatsPopover({
               </div>
               <p className="stats-empty">{t.community.statsDescription}</p>
             </>
+          )}
+          {onKick && (
+            <button
+              type="button"
+              className="button danger stats-kick"
+              onClick={onKick}
+            >
+              {t.kick}
+            </button>
           )}
         </>
       )}

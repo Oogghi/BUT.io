@@ -1,3 +1,4 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import {
   useEffect,
   useRef,
@@ -5,7 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { useReducedMotion } from 'motion/react';
+
 import type { mountGame } from '@but/bomb-party/client';
 import type { BombPartySnapshot } from './lobbyConnection';
 import { PlayerAvatar } from './Avatar';

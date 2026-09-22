@@ -10,6 +10,70 @@ import type {
 import type { BlackjackActionError } from '@but/blackjack-party';
 
 const en = {
+  polish: {
+    joinHint: 'Have a code? Join any game here.',
+    inviteMore: 'Invite another player to start.',
+    markReady: 'Mark yourself ready to play.',
+    waitingPlayers: 'Waiting for the remaining players to get ready.',
+    allReady: 'Everyone is ready. Start when you are.',
+    availableSeats: 'seats available',
+    preview: 'Preview',
+    previewing: 'Previewing',
+    profileLocal: 'Kept on this browser',
+    profileUnsaved: 'Could not save on this browser',
+    angle: 'Angle',
+    power: 'Power',
+    aimHint: 'Drag in the arena or adjust your aim below.',
+    tankLoading: 'Loading the arena…',
+    tankLoadFailed: 'The arena could not load. Try again.',
+    retry: 'Try again',
+    wordHint: 'Enter a French word containing the prompt, then press Enter.',
+    notFoundHint: 'This page is not here. Head back and pick a game.',
+    statsIntro: 'Your wins, playtime, and recent games in one place.',
+    leaderboardIntro:
+      'Compare players across Bomb Party, Tank Arena, and Blackjack.',
+    guestHint:
+      'Continue on this browser, or sign in to keep your identity across devices.',
+    trackingCoverage:
+      'Statistics currently cover Bomb Party, Tank Arena, and Blackjack.',
+  },
+  pk: {
+    chooseTable: 'Choose your table',
+    tableHint: 'Play against the dealer or challenge the other players.',
+    ultimateHint: 'Against the dealer · 1–6 players',
+    holdem: 'Classic Poker',
+    holdemHint: 'Texas Hold’em · 2–6 players',
+    anteMin: 'Minimum ante',
+    smallBlind: 'Small blind',
+    bigBlind: 'Big blind',
+    minRaise: 'Minimum raise',
+    showCards: 'Show all cards',
+    hostOnly: 'Only the host can change the table.',
+    hiddenCard: 'Hidden card',
+    preflop: 'Pre-flop',
+    flop: 'Flop',
+    turn: 'Turn',
+    river: 'River',
+    showdown: 'Showdown',
+    check: 'Check',
+    fold: 'Fold',
+    call: 'Call',
+    allIn: 'All in',
+    raise: 'Raise',
+    raiseAmount: 'Raise amount',
+    bet: 'Bet',
+    round: 'Round',
+    waiting: 'Waiting for',
+    finished: 'Table complete',
+    ultimateResult: 'Hands were compared with the dealer.',
+    holdemResult: 'The best hand takes the pot.',
+    betHint: 'Choose an ante. An equal blind is added to your bet.',
+    playHint: 'The × buttons raise by that multiple of your ante.',
+    ante: 'Ante',
+    blind: 'Blind',
+    play: 'Play',
+    pot: 'Pot',
+  },
   bp: {
     word: 'Your word',
     typeWord: 'Type…',
@@ -168,6 +232,8 @@ const en = {
 
   roomError: 'The room reported a connection error.',
   disconnected: 'Disconnected from the lobby. Join again to continue.',
+  kicked: 'The host removed you from the lobby.',
+  kick: 'Kick from the lobby',
   connectFailed: 'Unable to connect to the lobby.',
   lobbyNotFound: 'This lobby does not exist or has closed.',
   actionFailed: 'Something went wrong. Try again.',
@@ -249,7 +315,7 @@ const en = {
     friendsTitle: 'Friends',
     friendsDescription: 'Find your people and keep your next game close.',
     statsTitle: 'Player stats',
-    statsDescription: 'A clear read on your games, across both arenas.',
+    statsDescription: 'See your progress across your games.',
     leaderboardTitle: 'Leaderboards',
     leaderboardDescription: 'See who is setting the pace in each game.',
     arenaTitle: 'Your arena',
@@ -399,6 +465,7 @@ const en = {
     'bomb-party': 'Find a word. Pass the bomb.',
     'tank-arena': 'Aim, fire, and knock them into the water.',
     'blackjack-party': 'Build your stack. Beat the dealer.',
+    'poker-party': 'Read the table. Play your hand.',
   },
   closeOptions: 'Close room options',
   modeGroup: 'Choose create or join',
@@ -544,6 +611,71 @@ const en = {
 };
 
 const fr: typeof en = {
+  polish: {
+    joinHint: 'Tu as un code ? Rejoins un jeu ici.',
+    inviteMore: 'Invite un autre joueur pour commencer.',
+    markReady: 'Indique que tu es prêt à jouer.',
+    waitingPlayers: 'En attente des autres joueurs.',
+    allReady: 'Tout le monde est prêt. Lance la partie.',
+    availableSeats: 'places disponibles',
+    preview: 'Aperçu',
+    previewing: 'Aperçu actif',
+    profileLocal: 'Conservé sur ce navigateur',
+    profileUnsaved: 'Impossible de sauvegarder sur ce navigateur',
+    angle: 'Angle',
+    power: 'Puissance',
+    aimHint: 'Glisse dans l’arène ou ajuste ta visée ci-dessous.',
+    tankLoading: 'Chargement de l’arène…',
+    tankLoadFailed: 'Impossible de charger l’arène. Réessaie.',
+    retry: 'Réessayer',
+    wordHint:
+      'Écris un mot français contenant la syllabe, puis appuie sur Entrée.',
+    notFoundHint: 'Cette page n’existe pas. Retourne choisir un jeu.',
+    statsIntro: 'Tes victoires, ton temps de jeu et tes dernières parties.',
+    leaderboardIntro:
+      'Compare les joueurs de Bomb Party, Tank Arena et Blackjack.',
+    guestHint:
+      'Continue sur ce navigateur ou connecte-toi pour retrouver ton identité sur tes appareils.',
+    trackingCoverage:
+      'Les statistiques couvrent actuellement Bomb Party, Tank Arena et Blackjack.',
+  },
+  pk: {
+    chooseTable: 'Choisis ta table',
+    tableHint: 'Affronte le croupier ou les autres joueurs.',
+    ultimateHint: 'Contre le croupier · 1 à 6 joueurs',
+    holdem: 'Poker classique',
+    holdemHint: 'Texas Hold’em · 2 à 6 joueurs',
+    anteMin: 'Ante minimum',
+    smallBlind: 'Petite blind',
+    bigBlind: 'Grosse blind',
+    minRaise: 'Relance minimum',
+    showCards: 'Cartes visibles',
+    hostOnly: 'Seul l’hôte peut modifier la table.',
+    hiddenCard: 'Carte cachée',
+    preflop: 'Pré-flop',
+    flop: 'Flop',
+    turn: 'Turn',
+    river: 'River',
+    showdown: 'Abattage',
+    check: 'Parole',
+    fold: 'Se coucher',
+    call: 'Suivre',
+    allIn: 'Tapis',
+    raise: 'Relancer',
+    raiseAmount: 'Montant de la relance',
+    bet: 'Miser',
+    round: 'Manche',
+    waiting: 'Au tour de',
+    finished: 'Fin de la table',
+    ultimateResult: 'Les mains ont été comparées au croupier.',
+    holdemResult: 'Le meilleur jeu remporte le pot.',
+    betHint: 'Choisis une ante. Une blind identique s’ajoute à ta mise.',
+    playHint: 'Les boutons × misent ce multiple de ton ante.',
+    ante: 'Ante',
+    blind: 'Blind',
+    play: 'Jeu',
+    pot: 'Pot',
+  },
   bp: {
     word: 'Ton mot',
     typeWord: 'Écris…',
@@ -703,6 +835,8 @@ const fr: typeof en = {
 
   roomError: 'Le salon a signalé une erreur de connexion.',
   disconnected: 'Déconnecté du salon. Rejoins-le pour continuer.',
+  kicked: 'L’hôte t’a exclu du salon.',
+  kick: 'Exclure du salon',
   connectFailed: 'Impossible de se connecter au salon.',
   lobbyNotFound: 'Ce salon n’existe pas ou a été fermé.',
   actionFailed: 'Un problème est survenu. Réessaie.',
@@ -787,7 +921,7 @@ const fr: typeof en = {
     friendsDescription:
       'Retrouve tes proches et garde ta prochaine partie à portée.',
     statsTitle: 'Stats du joueur',
-    statsDescription: 'Une vue claire de tes parties dans les deux arènes.',
+    statsDescription: 'Retrouve ta progression dans tes jeux.',
     leaderboardTitle: 'Classements',
     leaderboardDescription: 'Découvre qui mène la partie dans chaque jeu.',
     arenaTitle: 'Ton arène',
@@ -940,6 +1074,7 @@ const fr: typeof en = {
     'bomb-party': 'Trouve un mot. Passe la bombe.',
     'tank-arena': 'Vise, tire et envoie-les à l’eau.',
     'blackjack-party': 'Monte ta pile. Bats le croupier.',
+    'poker-party': 'Observe la table. Joue ta main.',
   },
   closeOptions: 'Fermer les options du salon',
   modeGroup: 'Créer ou rejoindre',
@@ -1141,17 +1276,30 @@ export function blackjackError(code: string): string {
 }
 
 export function pokerError(code: string): string {
-  const messages: Record<string, string> = {
-    'not-playing': 'Cette action n’est pas disponible maintenant.',
-    'not-your-turn': 'Ce n’est pas ton tour.',
-    'invalid-action': 'Cette action n’est pas autorisée ici.',
-    'invalid-bet': 'Cette mise ne respecte pas les réglages de la table.',
-    'not-enough-chips': 'Tu n’as pas assez de jetons.',
-    'must-call': 'Tu dois suivre ou relancer.',
-    'nothing-to-call': 'Il n’y a rien à suivre.',
-    'raise-too-small': 'La relance est trop petite.',
-    'not-available': 'Cette mise n’est plus disponible.',
-  };
+  const messages: Record<string, string> =
+    lang === 'en'
+      ? {
+          'not-playing': 'This action is not available now.',
+          'not-your-turn': 'It is not your turn.',
+          'invalid-action': 'You cannot do that here.',
+          'invalid-bet': 'Choose a bet within the table limits.',
+          'not-enough-chips': 'You do not have enough chips.',
+          'must-call': 'Call or raise to stay in the hand.',
+          'nothing-to-call': 'There is nothing to call.',
+          'raise-too-small': 'Increase your raise to the minimum.',
+          'not-available': 'This bet is no longer available.',
+        }
+      : {
+          'not-playing': 'Cette action n’est pas disponible maintenant.',
+          'not-your-turn': 'Ce n’est pas ton tour.',
+          'invalid-action': 'Cette action n’est pas autorisée ici.',
+          'invalid-bet': 'Cette mise ne respecte pas les réglages de la table.',
+          'not-enough-chips': 'Tu n’as pas assez de jetons.',
+          'must-call': 'Tu dois suivre ou relancer.',
+          'nothing-to-call': 'Il n’y a rien à suivre.',
+          'raise-too-small': 'La relance est trop petite.',
+          'not-available': 'Cette mise n’est plus disponible.',
+        };
   return messages[code] ?? t.actionFailed;
 }
 
@@ -1160,4 +1308,21 @@ export function lobbyError(code: string, fallback = t.actionFailed) {
   return Object.hasOwn(t.lobbyErrors, code)
     ? t.lobbyErrors[code as LobbyErrorCode]
     : fallback;
+}
+
+/** The current game protocol sends French hand names in both locales. */
+export function pokerHandLabel(label: string): string {
+  if (lang === 'fr') return label;
+  const labels: Record<string, string> = {
+    'Carte haute': 'High card',
+    Paire: 'Pair',
+    'Double paire': 'Two pair',
+    Brelan: 'Three of a kind',
+    Suite: 'Straight',
+    Couleur: 'Flush',
+    Full: 'Full house',
+    Carré: 'Four of a kind',
+    'Quinte flush': 'Straight flush',
+  };
+  return labels[label] ?? label;
 }

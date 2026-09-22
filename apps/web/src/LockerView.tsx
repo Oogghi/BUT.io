@@ -1,11 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { AVATAR_COUNT, DISPLAY_NAME_MAX_LENGTH } from '@but/shared';
+import {
+  AVATAR_COUNT,
+  DISPLAY_NAME_MAX_LENGTH,
+  resolvePlayerAvatar,
+} from '@but/shared';
 import { Icon } from './Icon';
 import { PlayerAvatar, ProfileAvatar } from './Avatar';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import { t } from './i18n';
-import { cosmetics, type CosmeticId } from './cosmetics';
+import {
+  cosmetics,
+  cosmeticSlots,
+  cosmeticLabels as c,
+  type CosmeticSlot,
+  type CosmeticId,
+} from './cosmetics';
+import { CosmeticPreview } from './CosmeticPreview';
 import {
   currentAccount,
   DataLayerError,
@@ -17,11 +28,14 @@ import {
 } from './supabaseData';
 
 export function LockerView() {
+  const [saveFailed, setSaveFailed] = useState(false);
   const [profile, setProfile] = useState<Profile>(loadProfile);
+  const latestProfile = useRef(profile);
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [rewards, setRewards] = useState<RewardState | null>(null);
   const [rewardError, setRewardError] = useState('');
-  const [busyCosmetic, setBusyCosmetic] = useState<CosmeticId | null>(null);
+  const [busyCosmetic, setBusyCosmetic] = useState<string | null>(null);
+  const [category, setCategory] = useState<CosmeticSlot | 'all'>('all');
 
   useEffect(() => {
     let active = true;
@@ -46,13 +60,28 @@ export function LockerView() {
   }, []);
 
   function updateProfile(changes: Partial<Profile>) {
-    const next = { ...profile, ...changes };
+    const next = { ...latestProfile.current, ...changes };
+    latestProfile.current = next;
     setProfile(next);
-    saveProfile(next);
+    setSaveFailed(!saveProfile(next));
   }
 
   const previewName = profile.displayName.trim() || t.yourName;
   const connected = Boolean(account && !account.isAnonymous);
+  const equippedAvatar = rewards?.equippedCosmetics.avatar;
+  const avatarBusy =
+    busyCosmetic !== null || account === undefined || (connected && !rewards);
+  const shownAvatar = resolvePlayerAvatar(
+    profile.avatar,
+    rewards?.equippedCosmetics ?? {},
+  );
+
+  async function selectFreeAvatar(avatar: number) {
+    if (avatarBusy) return;
+    // Keep the account selection and the local fallback in agreement.
+    if (equippedAvatar && !(await equip('avatar', null))) return;
+    updateProfile({ avatar });
+  }
 
   async function reloadRewards() {
     if (!account || account.isAnonymous) return;
@@ -71,29 +100,34 @@ export function LockerView() {
   }
 
   async function buy(cosmeticId: CosmeticId) {
-    if (!connected) return;
+    if (!connected || busyCosmetic || !rewards) return;
     setBusyCosmetic(cosmeticId);
     setRewardError('');
     try {
       await purchaseCosmetic(cosmeticId);
       await reloadRewards();
       dispatchEvent(new CustomEvent('but-reward-change'));
+      return true;
     } catch (cause) {
       rewardFailure(cause);
+      return false;
     } finally {
       setBusyCosmetic(null);
     }
   }
 
-  async function equip(cosmeticId: CosmeticId | null) {
-    if (!connected) return;
-    setBusyCosmetic(cosmeticId);
+  async function equip(slot: CosmeticSlot, cosmeticId: CosmeticId | null) {
+    if (!connected || busyCosmetic || !rewards) return;
+    setBusyCosmetic(cosmeticId ?? slot);
     setRewardError('');
     try {
-      await setEquippedCosmetic(cosmeticId);
+      await setEquippedCosmetic(cosmeticId, slot);
       await reloadRewards();
+      dispatchEvent(new CustomEvent('but-reward-change'));
+      return true;
     } catch (cause) {
       rewardFailure(cause);
+      return false;
     } finally {
       setBusyCosmetic(null);
     }
@@ -123,20 +157,25 @@ export function LockerView() {
         >
           <div className="locker-preview-topline">
             <span id="locker-preview-title">{t.lockerPreview}</span>
-            <span className="locker-saved">{t.lockerSaved}</span>
+            <span className="locker-saved">
+              {saveFailed ? t.polish.profileUnsaved : t.polish.profileLocal}
+            </span>
           </div>
           <div className="locker-preview-stage">
             <div
               className={`locker-avatar-frame${rewards?.equippedCosmetic ? ` is-${rewards.equippedCosmetic}` : ''}`}
             >
               <ProfileAvatar
-                avatar={profile.avatar}
-                onChange={(avatar) => updateProfile({ avatar })}
+                avatar={shownAvatar}
+                onChange={(avatar) => void selectFreeAvatar(avatar)}
               />
             </div>
             <div className="locker-preview-copy">
               <strong>{previewName}</strong>
-              <span>{t.profile}</span>
+              <span>
+                {cosmetics.find((item) => item.id === equippedAvatar)?.name ??
+                  t.profile}
+              </span>
             </div>
           </div>
           <div className="locker-preview-rule" />
@@ -150,10 +189,10 @@ export function LockerView() {
           <div className="locker-section-heading">
             <div>
               <span className="eyebrow">{t.profile}</span>
-              <h2 id="locker-editor-title">{t.lockerAvatar}</h2>
+              <h2 id="locker-editor-title">{c.freeAvatars}</h2>
             </div>
             <span className="locker-selection-count">
-              {profile.avatar + 1} / {AVATAR_COUNT}
+              {AVATAR_COUNT} · {c.free}
             </span>
           </div>
           <div className="locker-name-field">
@@ -177,17 +216,26 @@ export function LockerView() {
             {Array.from({ length: AVATAR_COUNT }, (_, avatar) => (
               <button
                 key={avatar}
-                className={`locker-avatar-option${profile.avatar === avatar ? ' is-selected' : ''}`}
+                className={`locker-avatar-option${!equippedAvatar && profile.avatar === avatar ? ' is-selected' : ''}`}
                 type="button"
                 role="radio"
-                aria-checked={profile.avatar === avatar}
-                aria-label={`${t.lockerAvatar} ${avatar + 1}`}
-                onClick={() => updateProfile({ avatar })}
+                aria-checked={!equippedAvatar && profile.avatar === avatar}
+                aria-label={c.freeNames[avatar]}
+                title={c.freeNames[avatar]}
+                disabled={avatarBusy}
+                onClick={() => void selectFreeAvatar(avatar)}
               >
                 <PlayerAvatar avatar={avatar} />
               </button>
             ))}
           </div>
+          <a
+            className="text-link locker-premium-link"
+            href="#locker-rewards-title"
+            onClick={() => setCategory('avatar')}
+          >
+            {c.premiumAvatars} <Icon name="arrow" />
+          </a>
         </section>
       </div>
 
@@ -217,63 +265,142 @@ export function LockerView() {
         )}
         <div className="locker-cosmetics-heading">
           <h3>{t.cosmeticShop}</h3>
-          {!connected && <span>{t.signInToUnlock}</span>}
+          {!connected && (
+            <Link className="text-link" to="/friends">
+              {t.signInToUnlock} <Icon name="arrow" />
+            </Link>
+          )}
         </div>
-        <div className="locker-cosmetic-grid">
-          {cosmetics.map((cosmetic) => {
-            const owned =
-              rewards?.ownedCosmetics.includes(cosmetic.id) ?? false;
-            const equipped = rewards?.equippedCosmetic === cosmetic.id;
-            const busy = busyCosmetic === cosmetic.id;
-            return (
-              <article
-                className={`locker-cosmetic-card is-${cosmetic.id}`}
-                key={cosmetic.id}
-              >
-                <span className="locker-cosmetic-swatch" aria-hidden="true" />
-                <div>
-                  <strong>{cosmetic.name}</strong>
-                  <p>{cosmetic.description}</p>
-                </div>
-                <div className="locker-cosmetic-footer">
-                  <span className="locker-cosmetic-price">
-                    <Icon name="coin" /> {cosmetic.price}
-                  </span>
-                  {!connected ? (
-                    <span className="locker-cosmetic-muted">
-                      {t.signInToUnlock}
-                    </span>
-                  ) : equipped ? (
+        {connected && !rewards && !rewardError && (
+          <p role="status">{c.loading}</p>
+        )}
+        <p className="locker-rewards-description">{c.hint}</p>
+        {rewards && (
+          <section className="cosmetic-loadout" aria-label={c.equipped}>
+            {cosmeticSlots.map((slot) => {
+              const id = rewards.equippedCosmetics[slot];
+              return (
+                <div key={slot}>
+                  <span>{c[slot]}</span>
+                  <strong>
+                    {cosmetics.find((item) => item.id === id)?.name ?? c.empty}
+                  </strong>
+                  {id && (
                     <button
-                      className="button compact-button"
-                      type="button"
-                      disabled
-                    >
-                      {t.equipped}
-                    </button>
-                  ) : owned ? (
-                    <button
-                      className="button secondary compact-button"
+                      className="text-link"
                       type="button"
                       disabled={busyCosmetic !== null}
-                      onClick={() => void equip(cosmetic.id)}
+                      onClick={() => void equip(slot, null)}
+                      aria-label={`${c.reset} ${c[slot]}`}
                     >
-                      {busy ? t.community.working : t.equip}
-                    </button>
-                  ) : (
-                    <button
-                      className="button primary compact-button"
-                      type="button"
-                      disabled={busyCosmetic !== null}
-                      onClick={() => void buy(cosmetic.id)}
-                    >
-                      {busy ? t.community.working : t.buy}
+                      {c.reset}
                     </button>
                   )}
                 </div>
-              </article>
-            );
-          })}
+              );
+            })}
+          </section>
+        )}
+        <div
+          className="cosmetic-filters"
+          role="group"
+          aria-label={t.cosmeticShop}
+        >
+          {(['all', ...cosmeticSlots] as const).map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              className="button secondary compact-button"
+              aria-pressed={category === slot}
+              onClick={() => setCategory(slot)}
+            >
+              {c[slot]}
+            </button>
+          ))}
+        </div>
+        <div
+          className={`locker-cosmetic-grid${category === 'avatar' ? ' is-avatar-category' : ''}`}
+        >
+          {cosmetics
+            .filter((item) => category === 'all' || item.slot === category)
+            .map((cosmetic) => {
+              const owned =
+                rewards?.ownedCosmetics.includes(cosmetic.id) ?? false;
+              const equipped =
+                rewards?.equippedCosmetics[cosmetic.slot] === cosmetic.id;
+              const busy = busyCosmetic === cosmetic.id;
+              return (
+                <article
+                  className={`locker-cosmetic-card is-${cosmetic.id}`}
+                  key={cosmetic.id}
+                >
+                  <div className="locker-cosmetic-preview">
+                    <CosmeticPreview id={cosmetic.id} avatar={profile.avatar} />
+                  </div>
+                  <div>
+                    <span className="cosmetic-game-label">
+                      {cosmetic.slot === 'avatar'
+                        ? c.avatarGames
+                        : cosmetic.slot === 'frame'
+                          ? c.profile
+                          : cosmetic.slot === 'tank-decal'
+                            ? c.tanks
+                            : c.games}
+                    </span>
+                    <strong>{cosmetic.name}</strong>
+                    <p>{cosmetic.description}</p>
+                  </div>
+                  <div className="locker-cosmetic-footer">
+                    <span className="locker-cosmetic-price">
+                      <Icon name="coin" /> {cosmetic.price}
+                    </span>
+                    {!connected ? (
+                      <Link
+                        className="text-link locker-cosmetic-muted"
+                        to="/friends"
+                      >
+                        {t.community.signIn} <Icon name="arrow" />
+                      </Link>
+                    ) : equipped ? (
+                      <button
+                        className="button compact-button"
+                        type="button"
+                        disabled
+                      >
+                        {t.equipped}
+                      </button>
+                    ) : owned ? (
+                      <button
+                        className="button secondary compact-button"
+                        type="button"
+                        disabled={busyCosmetic !== null}
+                        onClick={() => void equip(cosmetic.slot, cosmetic.id)}
+                      >
+                        {busy ? t.community.working : t.equip}
+                      </button>
+                    ) : (
+                      <button
+                        className="button primary compact-button"
+                        type="button"
+                        disabled={
+                          busyCosmetic !== null ||
+                          !rewards ||
+                          rewards.coins < cosmetic.price
+                        }
+                        title={
+                          rewards && rewards.coins < cosmetic.price
+                            ? c.insufficient
+                            : undefined
+                        }
+                        onClick={() => void buy(cosmetic.id)}
+                      >
+                        {busy ? t.community.working : t.buy}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
         </div>
       </section>
     </section>

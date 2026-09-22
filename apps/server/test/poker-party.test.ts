@@ -3,7 +3,7 @@ import test from 'node:test';
 import { defaultPokerSettings, type PokerRoomState } from '@but/poker-party';
 import { useTestServer } from './lobbyClient.js';
 
-const { create, waitFor, nextError } =
+const { create, join, waitFor, nextError } =
   useTestServer<PokerRoomState>('poker-party');
 
 test('a solo Ultimate Poker room starts and accepts the full decision path', async () => {
@@ -43,4 +43,29 @@ test('Hold’em needs a second participant', async () => {
   );
   host.send('start');
   assert.equal(await nextError(host), 'not-enough-players');
+});
+
+test('the host can kick a player out of a running table', async () => {
+  const host = await create('Host');
+  const guest = await join(host.roomId, 'Guest');
+  const kicked = nextError(guest, 'kicked');
+  const closed = new Promise<number>((resolve) => guest.onLeave(resolve));
+  guest.send('kick', host.sessionId);
+  assert.equal(await nextError(guest), 'host-only');
+  host.send('ready', true);
+  guest.send('ready', true);
+  await waitFor(
+    host,
+    (state) =>
+      [...state.players.values()].filter((player) => player.ready).length === 2,
+  );
+  host.send('start');
+  await waitFor(host, (state) => state.phase === 'playing', 2500);
+  host.send('kick', guest.sessionId);
+  await kicked;
+  assert.equal(await closed, 4002);
+  await waitFor(host, (state) => state.players.size === 1);
+  // The match treats it as a departure: the seat stays, out of the hand.
+  const seat = JSON.parse(host.state.game.players.get(guest.sessionId)!);
+  assert.equal(seat.departed, true);
 });

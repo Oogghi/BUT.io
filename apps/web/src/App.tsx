@@ -7,7 +7,8 @@ import {
   useNavigate,
   useParams,
 } from 'react-router';
-import { MotionConfig, motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { ErrorCode, MatchMakeError } from '@colyseus/sdk';
 import type { JoinOptions } from '@but/shared';
 import { EntryForm } from './EntryForm';
@@ -24,7 +25,6 @@ import {
   type LobbyRoom,
   type LobbySnapshot,
 } from './lobbyConnection';
-import { spring } from './spring';
 import { loadProfile, type Profile } from './profile';
 import {
   blackjackError,
@@ -40,7 +40,6 @@ import {
   type AuthMode,
   type CommunitySection,
 } from './CommunityView';
-import { loadSettings, type AppSettings } from './settings';
 import { SettingsPanel } from './SettingsPanel';
 import { LockerView } from './LockerView';
 import { CoinIndicator, RewardToast, type RewardNotice } from './Rewards';
@@ -62,7 +61,6 @@ export default function App() {
     AuthMode | undefined
   >();
   const [settingsPanel, setSettingsPanel] = useState(false);
-  const [settings, setSettings] = useState<AppSettings>(loadSettings);
   const [rewardNotice, setRewardNotice] = useState<RewardNotice | null>(null);
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [snapshot, setSnapshot] = useState<LobbySnapshot | null>(null);
@@ -73,15 +71,6 @@ export default function App() {
   useLayoutEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.key]);
-
-  useEffect(() => {
-    const updateSettings = (event: Event) => {
-      const next = (event as CustomEvent<AppSettings>).detail;
-      if (next && typeof next.reduceMotion === 'boolean') setSettings(next);
-    };
-    addEventListener('but-settings-change', updateSettings);
-    return () => removeEventListener('but-settings-change', updateSettings);
-  }, []);
 
   useEffect(() => {
     if (location.pathname !== '/') {
@@ -119,10 +108,14 @@ export default function App() {
       }
     };
     const reportError = () => setError(t.roomError);
+    let kicked = false;
     const disconnected = () => {
       setRoom(null);
-      setError(t.disconnected);
+      setError(kicked ? t.kicked : t.disconnected);
     };
+    const stopKicked = room.onMessage('kicked', () => {
+      kicked = true;
+    });
     room.onStateChange(update);
     const stopErrors = room.onMessage<string>('action-error', (code) =>
       setError(lobbyError(code)),
@@ -173,6 +166,7 @@ export default function App() {
       stopPokerErrors();
       stopRebuys();
       stopRewards();
+      stopKicked();
       if (room.connection.isOpen) void room.leave();
     };
   }, [room]);
@@ -260,10 +254,7 @@ export default function App() {
   }
 
   return (
-    <MotionConfig
-      reducedMotion={settings.reduceMotion ? 'always' : 'user'}
-      transition={spring}
-    >
+    <>
       <a className="skip-link" href="#main-content">
         {t.skipToContent}
       </a>
@@ -379,10 +370,14 @@ export default function App() {
               <Route
                 path="*"
                 element={
-                  <>
+                  <section className="not-found panel">
+                    <span className="eyebrow">404</span>
                     <h1>{t.pageNotFound}</h1>
-                    <Link to="/">{t.backHome}</Link>
-                  </>
+                    <p>{t.polish.notFoundHint}</p>
+                    <Link className="button primary" to="/">
+                      {t.backHome}
+                    </Link>
+                  </section>
                 }
               />
             </Routes>
@@ -402,7 +397,7 @@ export default function App() {
         open={settingsPanel}
         onClose={() => setSettingsPanel(false)}
       />
-    </MotionConfig>
+    </>
   );
 }
 

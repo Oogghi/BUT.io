@@ -7,6 +7,7 @@ import {
   type Input,
   type Textures,
 } from 'phaser';
+import { decalPolygons } from '@but/shared';
 import {
   BUBBLE_SPRITE,
   PLANNING_SECONDS,
@@ -51,6 +52,8 @@ export interface ArenaTank {
   id: string;
   name: string;
   tank: TankId;
+  /** Owned cosmetic synchronized by the lobby; presentation only. */
+  decal?: string;
   x: number;
   y: number;
   angle: number;
@@ -149,6 +152,7 @@ const TRAIL: Partial<Record<ReplayTrack['kind'], string>> = {
 interface TankSprite {
   root: GameObjects.Container;
   body: GameObjects.Image;
+  decal: GameObjects.Graphics;
   shadow: GameObjects.Ellipse;
   /** Spike Bubble art, shown instead of the hull while the bubble is active. */
   bubble: GameObjects.Image;
@@ -186,9 +190,12 @@ export function mountArena(
   mapId: string,
   labels: ArenaLabels,
   callbacks: ArenaCallbacks,
+  options: { reducedMotion?: boolean; externalControls?: boolean } = {},
 ) {
   const map: ArenaMap = maps[mapId] ?? Object.values(maps)[0]!;
-  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let calm =
+    options.reducedMotion ??
+    matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Render at the displayed pixel density (not the map's 1672px) so text and edges stay
   // sharp; the camera zoom keeps every coordinate in map pixels.
   const resolution = Math.min(
@@ -433,6 +440,7 @@ export function mountArena(
       pendingHud = hud;
       if (!this.ready) return;
       this.hud = hud;
+      if (options.externalControls) return;
       this.hint.setText(hud.hint).setColor(hud.error ? '#ffb4a6' : '#ffffff');
       this.stageText.setText(hud.actions.length ? '' : hud.stageLabel);
       const key = JSON.stringify([
@@ -673,6 +681,7 @@ export function mountArena(
     }
 
     private drawHud(time: number) {
+      if (options.externalControls) return;
       const g = this.hudGraphics;
       g.clear();
       const hud = this.hud;
@@ -768,6 +777,23 @@ export function mountArena(
         .image(0, 0, `tank-${player.tank}`)
         .setOrigin(0.5, 0.87)
         .setScale(SPRITE_SCALE);
+      // Coordinates are relative to the hull image's origin, in source pixels.
+      // Sharing the image transform below keeps the paint attached during replays.
+      const decal = this.add.graphics();
+      decal.fillStyle(0xfff3bf, 0.98);
+      decal.lineStyle(2, 0x392711, 0.9);
+      for (const polygon of decalPolygons(player.decal)) {
+        decal.beginPath();
+        for (let i = 0; i < polygon.length; i += 2) {
+          const x = -22 + polygon[i]! * 18;
+          const y = -72 + polygon[i + 1]! * 18;
+          if (i === 0) decal.moveTo(x, y);
+          else decal.lineTo(x, y);
+        }
+        decal.closePath();
+        decal.fillPath();
+        decal.strokePath();
+      }
       const bar = this.add.graphics();
       const text = (y: number, size: number) =>
         this.add
@@ -804,6 +830,7 @@ export function mountArena(
         .container(player.x, player.y, [
           shadow,
           body,
+          decal,
           bubble,
           bar,
           label,
@@ -815,6 +842,7 @@ export function mountArena(
         root,
         bubble,
         body,
+        decal,
         shadow,
         bar,
         label,
@@ -1212,6 +1240,7 @@ export function mountArena(
     private setBubble(sprite: TankSprite, active: boolean) {
       sprite.bubble.setVisible(active);
       sprite.body.setVisible(!active);
+      sprite.decal.setVisible(!active && sprite.alive);
       sprite.shadow.setVisible(!active);
     }
 
@@ -1505,6 +1534,15 @@ export function mountArena(
         EDGE_REACH,
         Math.min(map.width - EDGE_REACH, sprite.root.x),
       );
+      sprite.decal
+        .setPosition(sprite.body.x, sprite.body.y)
+        .setRotation(sprite.body.rotation)
+        .setScale(
+          sprite.body.scaleX * (sprite.body.flipX ? -1 : 1),
+          sprite.body.scaleY,
+        )
+        .setAlpha(sprite.body.alpha)
+        .setVisible(sprite.body.visible && sprite.alive);
       if (sprite.bubble.visible) {
         const angle = sprite.body.rotation;
         sprite.bubble
@@ -1714,6 +1752,9 @@ export function mountArena(
     },
     setHud(hud: ArenaHud) {
       scene.setHud(hud);
+    },
+    setReducedMotion(value: boolean) {
+      calm = value;
     },
     destroy: () => game.destroy(true),
   };

@@ -1,7 +1,13 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { LayoutGroup, motion, useReducedMotion } from 'motion/react';
-import { DISPLAY_NAME_MAX_LENGTH, LOBBY_CODE_PATTERN } from '@but/shared';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import {
+  DISPLAY_NAME_MAX_LENGTH,
+  LOBBY_CODE_PATTERN,
+  resolvePlayerAvatar,
+  type CosmeticLoadout,
+} from '@but/shared';
 import { bombParty } from '@but/bomb-party';
 import { tankArena } from '@but/tank-arena';
 import { blackjackParty } from '@but/blackjack-party';
@@ -10,11 +16,12 @@ import { Icon } from './Icon';
 import { ProfileAvatar } from './Avatar';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import { t } from './i18n';
-import { GameCard } from './GameCard';
+import { CardOptions, GameCard } from './GameCard';
 import { gameCards } from './gameCards';
 import { useGroupSession } from './GroupSession';
 import type { AuthMode, CommunitySection } from './CommunityView';
 import type { Destination } from './App';
+import { loadRewardState } from './supabaseData';
 
 /** Games with a server room; the other cards are placeholders. */
 const playable: string[] = [
@@ -48,36 +55,98 @@ export function EntryForm({
   const navigate = useNavigate();
   const { account, accountLoading, disconnect } = useGroupSession();
   const [profile, setProfile] = useState(loadProfile);
+  const [avatarEquipment, setAvatarEquipment] = useState<{
+    userId: string;
+    loadout: CosmeticLoadout;
+  } | null>(null);
+  const equippedLoadout =
+    account &&
+    !account.isAnonymous &&
+    avatarEquipment?.userId === account.userId
+      ? avatarEquipment.loadout
+      : {};
+  const shownAvatar = resolvePlayerAvatar(profile.avatar, equippedLoadout);
+  useEffect(() => {
+    if (!account || account.isAnonymous) return;
+    let active = true;
+    let request = 0;
+    const userId = account.userId;
+    const refresh = () => {
+      const current = ++request;
+      void loadRewardState(userId)
+        .then((rewards) => {
+          if (active && current === request)
+            setAvatarEquipment({ userId, loadout: rewards.equippedCosmetics });
+        })
+        .catch(() => {
+          if (active && current === request) setAvatarEquipment(null);
+        });
+    };
+    refresh();
+    window.addEventListener('but-reward-change', refresh);
+    return () => {
+      active = false;
+      window.removeEventListener('but-reward-change', refresh);
+    };
+  }, [account?.userId, account?.isAnonymous]);
   const name = profile.displayName;
   const [joinCode, setJoinCode] = useState(code ?? '');
   const [mode, setMode] = useState<'create' | 'join'>(code ? 'join' : 'create');
   const [errors, setErrors] = useState({ name: '', code: '' });
   const nameInput = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
-  const grid = useRef<HTMLDivElement>(null);
+  const joinShortcut = useRef<HTMLButtonElement>(null);
+  const [directJoin, setDirectJoin] = useState(false);
   const reducedMotion = useReducedMotion();
   const [activeGame, setActiveGame] = useState<string | null>(null);
+  const [catalogColumns, setCatalogColumns] = useState(1);
+  const activeIndex = gameCards.findIndex((game) => game.id === activeGame);
+  const expandedRow = Math.floor(Math.max(0, activeIndex) / catalogColumns) + 1;
+  const grid = useRef<HTMLDivElement>(null);
   // Invite links name their game so the card matches before joining.
   const [searchParams] = useSearchParams();
   const invitedGame =
     gameCards.find((game) => game.id === searchParams.get('game')) ??
     gameCards[0];
-  const orderedGames = [...gameCards].sort(
-    (a, b) => Number(b.id === activeGame) - Number(a.id === activeGame),
-  );
+  // Use the collapsed catalog's columns, even while an open card changes the grid.
+  useEffect(() => {
+    const element = grid.current;
+    if (!element) return;
+    const updateColumns = () => {
+      setCatalogColumns(
+        Number(
+          getComputedStyle(element).getPropertyValue('--catalog-columns'),
+        ) || 1,
+      );
+    };
+    updateColumns();
+    const observer = new ResizeObserver(updateColumns);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [code]);
 
   useEffect(() => {
-    if (
-      activeGame &&
-      grid.current &&
-      grid.current.getBoundingClientRect().top < 24
-    ) {
-      grid.current.scrollIntoView({
-        block: 'start',
+    const panel = document.getElementById(
+      directJoin ? 'join-options' : activeGame ? activeGame + '-options' : '',
+    );
+    if (panel && panel.getBoundingClientRect().bottom > window.innerHeight) {
+      panel.scrollIntoView({
+        block: 'nearest',
         behavior: reducedMotion ? 'instant' : 'smooth',
       });
     }
-  }, [activeGame, reducedMotion]);
+  }, [activeGame, directJoin, reducedMotion]);
+
+  function closeOptions() {
+    if (pending) return;
+    if (directJoin) joinShortcut.current?.focus({ preventScroll: true });
+    else
+      document
+        .getElementById(`${activeGame}-tile`)
+        ?.focus({ preventScroll: true });
+    setActiveGame(null);
+    setDirectJoin(false);
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -122,6 +191,8 @@ export function EntryForm({
 
   function toggleGame(id: string) {
     if (pending) return;
+    if (!activeGame || directJoin) setMode('create');
+    setDirectJoin(false);
     setActiveGame((current) => (current === id ? null : id));
     if (activeGame !== id && playable.includes(id) && !name.trim()) {
       nameInput.current?.focus({ preventScroll: true });
@@ -134,8 +205,13 @@ export function EntryForm({
         <section className="hero" aria-label={t.profile}>
           <div className="profile-card">
             <ProfileAvatar
-              avatar={profile.avatar}
-              onChange={(avatar) => updateProfile({ avatar })}
+              avatar={shownAvatar}
+              onChange={(avatar) => {
+                if (equippedLoadout.avatar) {
+                  if (onOpenLocker) onOpenLocker();
+                  else void navigate('/locker');
+                } else updateProfile({ avatar });
+              }}
             />
             <div className="profile-identity">
               <label className="profile-name">
@@ -290,6 +366,21 @@ export function EntryForm({
         {!code && (
           <div className="section-heading">
             <h2 id="games-title">{t.pickGame}</h2>
+            <button
+              ref={joinShortcut}
+              className="button secondary join-shortcut"
+              type="button"
+              disabled={pending}
+              aria-expanded={directJoin}
+              aria-controls={directJoin ? 'join-options' : undefined}
+              onClick={() => {
+                setActiveGame(null);
+                setMode('join');
+                setDirectJoin(!directJoin);
+              }}
+            >
+              <Icon name="users" /> {t.joinRoom}
+            </button>
           </div>
         )}
         {code ? (
@@ -305,30 +396,72 @@ export function EntryForm({
         ) : (
           <LayoutGroup>
             <div className="game-grid" ref={grid}>
-              {orderedGames.map((game) => (
+              {gameCards.map((game) => (
                 <GameCard
                   key={game.id}
                   game={game}
                   open={activeGame === game.id}
+                  expandedRow={expandedRow}
                   pending={pending}
                   onToggle={() => toggleGame(game.id)}
                 >
-                  <div className="selection-heading">
-                    <p>
-                      {playable.includes(game.id)
-                        ? t.gameTaglines[game.id as keyof typeof t.gameTaglines]
-                        : t.gameComingSoon}
-                    </p>
-                  </div>
-                  {playable.includes(game.id) && roomForm()}
+                  {activeGame === game.id && (
+                    <CardOptions
+                      key={game.id + '-options'}
+                      id={game.id + '-options'}
+                      name={game.name}
+                      color={game.color}
+                      reducedMotion={reducedMotion}
+                      onClose={closeOptions}
+                    >
+                      <div className="selection-heading">
+                        <p>{t.gameTaglines[game.id]}</p>
+                      </div>
+                      {roomForm()}
+                      {closeButton()}
+                    </CardOptions>
+                  )}
                 </GameCard>
               ))}
             </div>
+            <AnimatePresence initial={false}>
+              {directJoin && (
+                <CardOptions
+                  key="join-options"
+                  id="join-options"
+                  name={t.joinRoom}
+                  color="sky"
+                  reducedMotion={reducedMotion}
+                  onClose={closeOptions}
+                >
+                  <div className="selection-heading">
+                    <h3>{t.joinRoom}</h3>
+                    <p>{t.polish.joinHint}</p>
+                  </div>
+                  {roomForm()}
+                  {closeButton()}
+                </CardOptions>
+              )}
+            </AnimatePresence>
           </LayoutGroup>
         )}
       </section>
     </>
   );
+
+  function closeButton() {
+    return (
+      <button
+        className="selection-close"
+        type="button"
+        aria-label={t.closeOptions}
+        disabled={pending}
+        onClick={closeOptions}
+      >
+        ×
+      </button>
+    );
+  }
 
   function roomForm() {
     return (
@@ -341,7 +474,7 @@ export function EntryForm({
             </div>
             <FieldError id="code-error" message={errors.code} />
           </>
-        ) : (
+        ) : !directJoin ? (
           <div className="mode-switch" role="group" aria-label={t.modeGroup}>
             {(
               [
@@ -365,7 +498,7 @@ export function EntryForm({
               </button>
             ))}
           </div>
-        )}
+        ) : null}
         <motion.div
           key={mode}
           initial={reducedMotion ? false : { opacity: 0, y: 8 }}
@@ -390,12 +523,8 @@ export function EntryForm({
                   <FieldError id="name-error" message={errors.name} />
                 </div>
               )}
-              {/* Rendered in both modes (hidden when creating) so switching modes never
-                  changes the panel's height. */}
-              {!code && (
-                <div
-                  className={`field ${mode === 'join' ? '' : 'is-reserved'}`}
-                >
+              {!code && mode === 'join' && (
+                <div className="field">
                   <label htmlFor="lobby-code">{t.lobbyCode}</label>
                   <input
                     ref={codeInput}
@@ -431,7 +560,7 @@ export function EntryForm({
           </form>
         </motion.div>
         {pending && (
-          <p role="status" className="fine-print">
+          <p role="status" className="sr-only">
             {t.connecting}
           </p>
         )}

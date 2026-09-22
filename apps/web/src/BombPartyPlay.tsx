@@ -1,6 +1,7 @@
+import { useAppReducedMotion as useReducedMotion } from './MotionPreferences';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { BombPartySend } from '@but/bomb-party';
-import { useReducedMotion } from 'motion/react';
+
 import { BombArena } from './BombArena';
 import type { BombPartySnapshot } from './lobbyConnection';
 import { Icon } from './Icon';
@@ -124,11 +125,14 @@ export function BombPartyPlay({
               enterKeyHint="send"
               maxLength={80}
               aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'word-error' : undefined}
+              aria-describedby={error ? 'word-error word-hint' : 'word-hint'}
             />
           </form>
         }
       />
+      <p id="word-hint" className="word-entry-hint">
+        {t.polish.wordHint}
+      </p>
       <div className="bomb-turn-meta" data-error={Boolean(error)}>
         <p role="status" className="word-feedback">
           {error ||

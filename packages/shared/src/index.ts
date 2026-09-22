@@ -11,6 +11,8 @@ export type LobbyPhase = 'lobby' | 'starting' | 'playing' | 'results';
 export interface LobbyPlayer {
   displayName: string;
   avatar: number;
+  /** Server-verified equipment, encoded for the room schema. */
+  cosmetics?: string;
   ready: boolean;
   /** Watches the next rounds instead of playing; never needs to be ready. */
   spectator: boolean;
@@ -24,18 +26,9 @@ export interface JoinOptions {
   authToken?: string;
 }
 
-/** Number of avatar looks. Clients draw them; the server only stores the index. */
-export const AVATAR_COUNT = 6;
+export * from './avatars.ts';
 
 export * from './rewards.ts';
-
-export function isAvatar(value: unknown): value is number {
-  return (
-    Number.isInteger(value) &&
-    (value as number) >= 0 &&
-    (value as number) < AVATAR_COUNT
-  );
-}
 
 export interface LobbyState {
   code: string;
@@ -70,3 +63,4 @@ export const DISPLAY_NAME_MAX_LENGTH = 24;
 export const LOBBY_CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/;
 
 export * from './stats.ts';
+export * from './cosmetics.ts';
