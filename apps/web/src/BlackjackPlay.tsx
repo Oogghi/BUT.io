@@ -93,9 +93,30 @@ export function BlackjackPlay({
   );
   const shoe = useRef<HTMLDivElement>(null);
 
+  // Phones show the seats as a swipeable strip; whoever has to act slides to its
+  // centre, and you otherwise. Desktop seats never scroll, so there this is a no-op.
+  const seatList = useRef<HTMLUListElement>(null);
+  const reduced = useReducedMotion();
+  const focusId = (game.stage === 'playing' && game.activePlayerId) || sessionId;
+  useEffect(() => {
+    const list = seatList.current;
+    const seat = list?.querySelector<HTMLElement>(
+      `[data-seat="${CSS.escape(focusId)}"]`,
+    );
+    if (!list || !seat) return;
+    list.scrollTo({
+      left: seat.offsetLeft + seat.offsetWidth / 2 - list.clientWidth / 2,
+      behavior: reduced ? 'auto' : 'smooth',
+    });
+  }, [focusId, seats.length, reduced]);
+
   return (
     <ShoeContext value={shoe}>
-      <div className="bj" data-stage={game.stage} data-your-turn={yourTurn}>
+      <div
+        className="bj blackjack-table"
+        data-stage={game.stage}
+        data-your-turn={yourTurn}
+      >
         <header className="bj-bar">
           <div className="bj-round">
             <strong>{t.bj.round(game.round, settings.rounds)}</strong>
@@ -155,7 +176,7 @@ export function BlackjackPlay({
             </p>
           </section>
 
-          <ul className="bj-seats">
+          <ul className="bj-seats" ref={seatList}>
             {seats.map((player, index) => (
               <Seat
                 key={player.id}
@@ -437,6 +458,7 @@ function Seat({
       <li
         className={`bj-seat${active ? ' is-active' : ''}${you ? ' is-you' : ''}`}
         style={position}
+        data-seat={player.id}
       >
         <div className="bj-seat-hands">
           {/*
